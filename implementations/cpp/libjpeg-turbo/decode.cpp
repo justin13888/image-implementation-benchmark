@@ -17,16 +17,39 @@ public:
         input_data.resize(size);
         if (!file.read(reinterpret_cast<char*>(input_data.data()), size))
             throw std::runtime_error("Failed to read input file");
+
+        // If verification is enabled, decode once to establish a baseline
+        if (args.verify) {
+            reference_output = decode(input_data);
+        }
     }
 
     std::vector<uint8_t> run(const Args& args) override {
+        return decode(input_data);
+    }
+
+    void verify(const Args& args, const std::vector<uint8_t>& output) override {
+        // For self-verification (checking determinism), we expect exact matches.
+        // However, we use verify_lossy to be consistent with the harness for lossy formats.
+        // A high threshold (e.g. 99dB or effectively infinite) would imply exact match.
+        // But since it's the same decoder, it SHOULD be exact.
+        if (reference_output.empty()) {
+            throw std::runtime_error("Reference output not available for verification");
+        }
+        
+        // Use verify_lossless for self-verification as it should be deterministic
+        verify_lossless(output, reference_output);
+    }
+
+private:
+    std::vector<uint8_t> decode(const std::vector<uint8_t>& data) {
         jpeg_decompress_struct cinfo;
         jpeg_error_mgr jerr;
         
         cinfo.err = jpeg_std_error(&jerr);
         jpeg_create_decompress(&cinfo);
         
-        jpeg_mem_src(&cinfo, input_data.data(), input_data.size());
+        jpeg_mem_src(&cinfo, data.data(), data.size());
         
         if (jpeg_read_header(&cinfo, TRUE) != JPEG_HEADER_OK) {
             jpeg_destroy_decompress(&cinfo);
@@ -53,12 +76,8 @@ public:
         return output;
     }
 
-    void verify(const Args& args, const std::vector<uint8_t>& output) override {
-        // Verification logic omitted for now
-    }
-
-private:
     std::vector<uint8_t> input_data;
+    std::vector<uint8_t> reference_output;
 };
 
 int main(int argc, char** argv) {

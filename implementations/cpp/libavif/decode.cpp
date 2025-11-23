@@ -17,13 +17,30 @@ public:
         input_data.resize(size);
         if (!file.read(reinterpret_cast<char*>(input_data.data()), size))
             throw std::runtime_error("Failed to read input file");
+
+        if (args.verify) {
+            reference_output = decode(input_data);
+        }
     }
 
     std::vector<uint8_t> run(const Args& args) override {
+        return decode(input_data);
+    }
+
+    void verify(const Args& args, const std::vector<uint8_t>& output) override {
+        if (reference_output.empty()) {
+            throw std::runtime_error("Reference output not available for verification");
+        }
+        // AVIF is lossy, but self-verification should be exact.
+        verify_lossless(output, reference_output);
+    }
+
+private:
+    std::vector<uint8_t> decode(const std::vector<uint8_t>& data) {
         avifDecoder * decoder = avifDecoderCreate();
         if (!decoder) throw std::runtime_error("avifDecoderCreate failed");
         
-        avifResult result = avifDecoderSetIOMemory(decoder, input_data.data(), input_data.size());
+        avifResult result = avifDecoderSetIOMemory(decoder, data.data(), data.size());
         if (result != AVIF_RESULT_OK) {
             avifDecoderDestroy(decoder);
             throw std::runtime_error("avifDecoderSetIOMemory failed");
@@ -63,12 +80,8 @@ public:
         return output;
     }
 
-    void verify(const Args& args, const std::vector<uint8_t>& output) override {
-        // Verification logic
-    }
-
-private:
     std::vector<uint8_t> input_data;
+    std::vector<uint8_t> reference_output;
 };
 
 int main(int argc, char** argv) {

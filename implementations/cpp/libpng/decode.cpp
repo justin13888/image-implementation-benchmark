@@ -17,6 +17,10 @@ public:
         input_data.resize(size);
         if (!file.read(reinterpret_cast<char*>(input_data.data()), size))
             throw std::runtime_error("Failed to read input file");
+
+        if (args.verify) {
+            reference_output = decode(input_data);
+        }
     }
 
     struct MemReader {
@@ -35,6 +39,18 @@ public:
     }
 
     std::vector<uint8_t> run(const Args& args) override {
+        return decode(input_data);
+    }
+
+    void verify(const Args& args, const std::vector<uint8_t>& output) override {
+        if (reference_output.empty()) {
+            throw std::runtime_error("Reference output not available for verification");
+        }
+        verify_lossless(output, reference_output);
+    }
+
+private:
+    std::vector<uint8_t> decode(const std::vector<uint8_t>& data) {
         png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
         if (!png_ptr) throw std::runtime_error("png_create_read_struct failed");
 
@@ -49,7 +65,7 @@ public:
             throw std::runtime_error("libpng error");
         }
 
-        MemReader reader = { input_data.data(), input_data.size(), 0 };
+        MemReader reader = { data.data(), data.size(), 0 };
         png_set_read_fn(png_ptr, &reader, read_data);
 
         png_read_info(png_ptr, info_ptr);
@@ -93,12 +109,8 @@ public:
         return output;
     }
 
-    void verify(const Args& args, const std::vector<uint8_t>& output) override {
-        // Verification logic
-    }
-
-private:
     std::vector<uint8_t> input_data;
+    std::vector<uint8_t> reference_output;
 };
 
 int main(int argc, char** argv) {

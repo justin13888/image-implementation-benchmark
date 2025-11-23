@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -x
 mkdir -p data data/kodak data/div2k data/pathological
 
 echo "=== Image Implementation Benchmark Data Setup ==="
@@ -208,68 +209,121 @@ fi
 # ============================================================================
 echo "[4/4] Generating reference encodings..."
 
-# Generate basic test image if not exists
+# Helper function to generate variants
+generate_variants() {
+    local input="$1"
+    local output_base="$2"
+    
+    # Skip if input doesn't exist
+    if [ ! -f "$input" ]; then
+        echo "Warning: Input file $input not found, skipping variants"
+        return
+    fi
+
+    echo "  Processing $(basename "$input")..."
+
+    # JPEG
+    if [ ! -f "${output_base}_web-low.jpg" ]; then
+        convert "$input" -quality 50 -sampling-factor 4:2:0 "${output_base}_web-low.jpg"
+    fi
+    if [ ! -f "${output_base}_web-high.jpg" ]; then
+        convert "$input" -quality 80 -interlace Plane "${output_base}_web-high.jpg"
+    fi
+    if [ ! -f "${output_base}_archival.jpg" ]; then
+        convert "$input" -quality 95 -sampling-factor 4:4:4 "${output_base}_archival.jpg"
+    fi
+
+    # WebP
+    if command -v cwebp &> /dev/null; then
+        if [ ! -f "${output_base}_web-low.webp" ]; then
+            cwebp -q 50 -m 4 "$input" -o "${output_base}_web-low.webp" -quiet
+        fi
+        if [ ! -f "${output_base}_web-high.webp" ]; then
+            cwebp -q 75 -m 4 "$input" -o "${output_base}_web-high.webp" -quiet
+        fi
+        if [ ! -f "${output_base}_archival.webp" ]; then
+            cwebp -lossless -z 6 "$input" -o "${output_base}_archival.webp" -quiet
+        fi
+    fi
+
+    # AVIF
+    if command -v avifenc &> /dev/null; then
+        # avifenc prefers PNG/JPEG input. If input is PPM, convert to PNG temp
+        local avif_input="$input"
+        local temp_png=""
+        
+        if [[ "$input" == *.ppm ]]; then
+            temp_png="${input%.*}.temp.png"
+            convert "$input" "$temp_png"
+            avif_input="$temp_png"
+        fi
+
+        if [ ! -f "${output_base}_web-low.avif" ]; then
+            avifenc -q 65 -s 6 "$avif_input" "${output_base}_web-low.avif" >/dev/null 2>&1
+        fi
+        if [ ! -f "${output_base}_web-high.avif" ]; then
+            avifenc -q 65 "$avif_input" "${output_base}_web-high.avif" >/dev/null 2>&1
+        fi
+        if [ ! -f "${output_base}_archival.avif" ]; then
+            avifenc -q 85 -y 444 "$avif_input" "${output_base}_archival.avif" >/dev/null 2>&1
+        fi
+        
+        if [ -n "$temp_png" ] && [ -f "$temp_png" ]; then
+            rm "$temp_png"
+        fi
+    fi
+
+    # JXL
+    if command -v cjxl &> /dev/null; then
+        if [ ! -f "${output_base}_web-low.jxl" ]; then
+            cjxl "$input" "${output_base}_web-low.jxl" -d 4.0 -e 7 >/dev/null 2>&1
+        fi
+        if [ ! -f "${output_base}_web-high.jxl" ]; then
+            cjxl "$input" "${output_base}_web-high.jxl" -d 1.0 -e 7 >/dev/null 2>&1
+        fi
+        if [ ! -f "${output_base}_archival.jxl" ]; then
+            cjxl "$input" "${output_base}_archival.jxl" -d 0 >/dev/null 2>&1
+        fi
+    fi
+}
+
+# 1. Test Dataset
 if [ ! -f "data/test.ppm" ]; then
     convert -size 1024x1024 xc: +noise Random data/test.ppm
 fi
-
-# JPEG encodings (using ImageMagick - always available)
-if [ ! -f "data/test_web-low.jpg" ]; then
-    convert data/test.ppm -quality 50 -sampling-factor 4:2:0 data/test_web-low.jpg
-fi
-if [ ! -f "data/test_web-high.jpg" ]; then
-    convert data/test.ppm -quality 80 -interlace Plane data/test_web-high.jpg
-fi
-if [ ! -f "data/test_archival.jpg" ]; then
-    convert data/test.ppm -quality 95 -sampling-factor 4:4:4 data/test_archival.jpg
-fi
-echo "  ✓ JPEG encodings generated"
-
-# PNG encoding (using ImageMagick - always available)
+# Ensure test.png exists for PNG benchmarks
 if [ ! -f "data/test.png" ]; then
     convert data/test.ppm data/test.png
 fi
-echo "  ✓ PNG encoding generated"
+generate_variants "data/test.ppm" "data/test"
 
-# Optional encodings - warn but don't fail if tools missing
-OPTIONAL_TOOLS=()
-command -v cwebp &> /dev/null || OPTIONAL_TOOLS+=("cwebp (WebP)")
-command -v avifenc &> /dev/null || OPTIONAL_TOOLS+=("avifenc (AVIF)")
-command -v cjxl &> /dev/null || OPTIONAL_TOOLS+=("cjxl (JPEG XL)")
+# 2. Kodak Dataset
+echo "  Generating Kodak variants..."
+for img in data/kodak/*.png; do
+    [ -e "$img" ] || continue
+    base="${img%.*}"
+    generate_variants "$img" "$base"
+done
 
-if [ ${#OPTIONAL_TOOLS[@]} -ne 0 ]; then
-    echo "  Note: Optional encoding tools not found (benchmarks for these formats will be limited):"
-    for tool in "${OPTIONAL_TOOLS[@]}"; do
-        echo "    - $tool"
-    done
-fi
+# 3. Pathological Dataset
+echo "  Generating Pathological variants..."
+for img in data/pathological/*.png; do
+    [ -e "$img" ] || continue
+    base="${img%.*}"
+    generate_variants "$img" "$base"
+done
 
-# WebP encodings (optional)
-if command -v cwebp &> /dev/null; then
-    [ ! -f "data/test_web-low.webp" ] && cwebp -q 50 -m 4 data/test.ppm -o data/test_web-low.webp 2>/dev/null
-    [ ! -f "data/test_web-high.webp" ] && cwebp -q 75 -m 4 data/test.ppm -o data/test_web-high.webp 2>/dev/null
-    [ ! -f "data/test_archival.webp" ] && cwebp -lossless -z 6 data/test.ppm -o data/test_archival.webp 2>/dev/null
-    echo "  ✓ WebP encodings generated"
-fi
-
-# AVIF encodings (optional)
-if command -v avifenc &> /dev/null; then
-    # Convert PPM to PNG first since avifenc works better with PNG
-    if [ ! -f "data/test.png" ]; then
-        convert data/test.ppm data/test.png
-    fi
-    [ ! -f "data/test_web-low.avif" ] && avifenc -q 65 -s 6 data/test.png data/test_web-low.avif 2>/dev/null
-    [ ! -f "data/test_web-high.avif" ] && avifenc -q 65 data/test.png data/test_web-high.avif 2>/dev/null
-    [ ! -f "data/test_archival.avif" ] && avifenc -q 85 -y 444 data/test.png data/test_archival.avif 2>/dev/null
-    echo "  ✓ AVIF encodings generated"
-fi
-
-# JXL encodings (optional)
-if command -v cjxl &> /dev/null; then
-    [ ! -f "data/test_web-low.jxl" ] && cjxl data/test.ppm data/test_web-low.jxl -d 4.0 -e 7 2>/dev/null
-    [ ! -f "data/test_web-high.jxl" ] && cjxl data/test.ppm data/test_web-high.jxl -d 1.0 -e 7 2>/dev/null
-    [ ! -f "data/test_archival.jxl" ] && cjxl data/test.ppm data/test_archival.jxl -d 0 2>/dev/null
-    echo "  ✓ JXL encodings generated"
+# 4. DIV2K Dataset (Selected only)
+echo "  Generating DIV2K variants (selected subset)..."
+if [ -f "data/div2k/selected.txt" ]; then
+    while IFS= read -r filename; do
+        [ -z "$filename" ] && continue
+        img="data/div2k/DIV2K_train_HR/$filename"
+        if [ -f "$img" ]; then
+            base="${img%.*}"
+            generate_variants "$img" "$base"
+        fi
+    done < "data/div2k/selected.txt"
 fi
 
 echo
