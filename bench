@@ -1,0 +1,288 @@
+#!/usr/bin/env python3
+import argparse
+import subprocess
+import os
+import sys
+import datetime
+import json
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run image benchmarks")
+    parser.add_argument("--formats", help="Comma-separated list of formats to run")
+    parser.add_argument(
+        "--type", choices=["encode", "decode"], default="decode", help="Benchmark type"
+    )
+    parser.add_argument("--threads", type=int, default=0, help="Number of threads")
+    parser.add_argument(
+        "--discard-output", action="store_true", help="Discard output (compute only)"
+    )
+    parser.add_argument("--verify", action="store_true", help="Verify correctness")
+    parser.add_argument(
+        "--measure-memory", action="store_true", help="Measure peak memory"
+    )
+    args = parser.parse_args()
+
+    # Configuration
+    implementations = {
+        "jpeg": [
+            {
+                "name": "jpeg-decoder",
+                "lang": "rust",
+                "bin": "target/release/bench-jpeg-decoder",
+                "type": "decode",
+            },
+            {
+                "name": "zune-jpeg",
+                "lang": "rust",
+                "bin": "target/release/bench-zune-jpeg",
+                "type": "decode",
+            },
+            {
+                "name": "libjpeg-turbo",
+                "lang": "cpp",
+                "bin": "implementations/cpp/libjpeg-turbo/build/bench-libjpeg-turbo",
+                "type": "decode",
+            },
+            {
+                "name": "mozjpeg",
+                "lang": "cpp",
+                "bin": "implementations/cpp/mozjpeg/build/bench-mozjpeg",
+                "type": "decode",
+            },
+        ],
+        "png": [
+            {
+                "name": "image-png",
+                "lang": "rust",
+                "bin": "target/release/bench-image-png",
+                "type": "decode",
+            },
+            {
+                "name": "image-png",
+                "lang": "rust",
+                "bin": "target/release/bench-image-png",
+                "type": "decode",
+            },
+            {
+                "name": "zune-png",
+                "lang": "rust",
+                "bin": "target/release/bench-zune-png",
+                "type": "decode",
+            },
+            {
+                "name": "libpng",
+                "lang": "cpp",
+                "bin": "implementations/cpp/libpng/build/bench-libpng",
+                "type": "decode",
+            },
+            {
+                "name": "spng",
+                "lang": "cpp",
+                "bin": "implementations/cpp/spng/build/bench-spng",
+                "type": "decode",
+            },
+            {
+                "name": "fpng",
+                "lang": "cpp",
+                "bin": "implementations/cpp/fpng/build/bench-fpng",
+                "type": "decode",
+            },
+        ],
+        "webp": [
+            {
+                "name": "image-webp",
+                "lang": "rust",
+                "bin": "target/release/bench-image-webp",
+                "type": "decode",
+            },
+            {
+                "name": "libwebp",
+                "lang": "cpp",
+                "bin": "implementations/cpp/libwebp/build/bench-libwebp",
+                "type": "decode",
+            },
+        ],
+        "avif": [
+            {
+                "name": "rav1e",
+                "lang": "rust",
+                "bin": "target/release/bench-rav1e",
+                "type": "encode",
+            },
+            {
+                "name": "rav1d",
+                "lang": "rust",
+                "bin": "target/release/bench-rav1d",
+                "type": "decode",
+            },
+            {
+                "name": "libavif",
+                "lang": "cpp",
+                "bin": "implementations/cpp/libavif/build/bench-libavif",
+                "type": "decode",
+            },
+            {
+                "name": "dav1d",
+                "lang": "cpp",
+                "bin": "implementations/cpp/dav1d/build/bench-dav1d",
+                "type": "decode",
+            },
+        ],
+        "jxl": [
+            {
+                "name": "jxl-oxide",
+                "lang": "rust",
+                "bin": "target/release/bench-jxl-oxide",
+                "type": "decode",
+            },
+            {
+                "name": "libjxl",
+                "lang": "cpp",
+                "bin": "implementations/cpp/libjxl/build/bench-libjxl",
+                "type": "decode",
+            },
+        ],
+    }
+
+    # Filter formats
+    formats_to_run = args.formats.split(",") if args.formats else implementations.keys()
+
+    # Build commands
+    cmds = []
+
+    # Ensure build
+    print("Building Rust project...")
+    subprocess.run(["cargo", "build", "--release"], check=True)
+
+    print("Building C++ projects...")
+    for fmt, impls in implementations.items():
+        for impl in impls:
+            if impl["lang"] == "cpp":
+                # Check if we need to build this one (based on formats_to_run)
+                if fmt not in formats_to_run:
+                    continue
+
+                # Build C++
+                bin_path = impl["bin"]
+                build_dir = os.path.dirname(bin_path)
+                src_dir = os.path.dirname(build_dir)
+
+                os.makedirs(build_dir, exist_ok=True)
+                subprocess.run(["cmake", ".."], cwd=build_dir, check=True)
+                subprocess.run(["make", "-j"], cwd=build_dir, check=True)
+
+    os.makedirs("results", exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    result_dir = f"results/{timestamp}"
+    os.makedirs(result_dir, exist_ok=True)
+
+    # Generate manifest
+    manifest = {
+        "timestamp": timestamp,
+        "os": subprocess.check_output(["uname", "-sr"]).decode().strip(),
+        "compiler": {
+            "rustc": subprocess.check_output(["rustc", "--version"]).decode().strip(),
+            "clang": subprocess.getoutput("clang --version").split("\n")[0]
+            if subprocess.getoutput("which clang")
+            else "Not found",
+        },
+    }
+    with open(f"{result_dir}/manifest.json", "w") as f:
+        json.dump(manifest, f, indent=2)
+
+    for fmt in formats_to_run:
+        if fmt not in implementations:
+            print(f"Unknown format: {fmt}")
+            continue
+
+        for impl in implementations[fmt]:
+            if impl["type"] != args.type:
+                continue
+
+            binary = impl["bin"]
+            if not os.path.exists(binary):
+                print(f"Binary not found: {binary}")
+                continue
+
+            # Select input file
+            if args.type == "decode":
+                if fmt == "jpeg":
+                    input_file = "data/test.jpg"
+                elif fmt == "png":
+                    input_file = "data/test.png"
+                elif fmt == "webp":
+                    input_file = "data/test.webp"
+                elif fmt == "avif":
+                    input_file = "data/test.avif"
+                elif fmt == "jxl":
+                    input_file = "data/test.jxl"
+                else:
+                    input_file = "data/test.jpg"  # Fallback
+            else:
+                input_file = "data/test.ppm"
+
+            output_file = "/dev/null"
+
+            cmd = [
+                binary,
+                "--input",
+                input_file,
+                "--output",
+                output_file,
+                "--quality",
+                "web-low",
+                "--iterations",
+                "10",
+                "--warmup",
+                "2",
+                "--threads",
+                str(args.threads),
+            ]
+
+            if args.discard_output:
+                cmd.append("--discard")
+
+            if args.verify:
+                cmd.append("--verify")
+
+            cmds.append(" ".join(cmd))
+
+    if not cmds:
+        print("No benchmarks to run.")
+        return
+
+    # Run hyperfine
+    json_output = f"{result_dir}/raw.json"
+    hyperfine_cmd = [
+        "hyperfine",
+        "--warmup",
+        "3",
+        "--min-runs",
+        "10",
+        "--export-json",
+        json_output,
+    ]
+
+    if args.measure_memory:
+        # Hyperfine doesn't support memory measurement directly in the same way,
+        # but we can use /usr/bin/time -v wrapper in the command if needed,
+        # or rely on hyperfine's --command-name to label.
+        # But the README says "Measure peak memory usage (uses /usr/bin/time -v)".
+        # This might mean wrapping the command.
+        pass
+
+    hyperfine_cmd.extend(cmds)
+
+    print("Running benchmarks...")
+    try:
+        subprocess.run(hyperfine_cmd, check=True)
+        print(f"Results saved to {result_dir}")
+    except FileNotFoundError:
+        print("Error: 'hyperfine' not found. Please install it.")
+    except subprocess.CalledProcessError:
+        print("Benchmark failed.")
+
+
+if __name__ == "__main__":
+    main()

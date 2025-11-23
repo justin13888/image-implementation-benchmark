@@ -1,0 +1,10 @@
+[package]
+name = "bench-rav1d"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+benchmark-harness = { path = "../../../harness/rust" }
+rav1d = "1.1"
+anyhow = "1.0"
+image = "0.24"
