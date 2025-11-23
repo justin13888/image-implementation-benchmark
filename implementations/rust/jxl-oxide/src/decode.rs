@@ -13,7 +13,7 @@ struct BenchContext {
 
 impl BenchmarkImplementation for JxlOxideBench {
     fn name(&self) -> &'static str {
-        "jxl-oxide"
+        "jxl-oxide-decode"
     }
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {

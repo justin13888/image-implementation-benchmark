@@ -8,7 +8,7 @@
 
 class Dav1dBench : public BenchmarkImplementation {
 public:
-    std::string name() const override { return "dav1d"; }
+    std::string name() const override { return "dav1d-decode"; }
 
     void prepare(const Args& args) override {
         // Use libavif to extract the raw AV1 payload

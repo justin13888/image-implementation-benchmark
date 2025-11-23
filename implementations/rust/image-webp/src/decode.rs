@@ -1,28 +1,26 @@
 use anyhow::{Context, Result};
-use benchmark_harness::{Args, BenchmarkImplementation, Quality};
-use jpeg_decoder::Decoder;
+use benchmark_harness::{Args, BenchmarkImplementation};
+use image::ImageFormat;
 use std::fs;
-use std::io::Cursor;
 
-struct JpegDecoderBench;
+struct ImageWebpBench;
 
 struct BenchContext {
     input_data: Vec<u8>,
     reference_pixels: Option<Vec<u8>>,
 }
 
-impl BenchmarkImplementation for JpegDecoderBench {
+impl BenchmarkImplementation for ImageWebpBench {
     fn name(&self) -> &'static str {
-        "jpeg-decoder"
+        "image-webp-decode"
     }
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         let input_data = fs::read(&args.input).context("Failed to read input file")?;
 
         let reference_pixels = if args.verify {
-            // Use image crate as reference
-            let img =
-                image::load_from_memory(&input_data).context("Failed to load reference image")?;
+            let img = image::load_from_memory_with_format(&input_data, ImageFormat::WebP)
+                .context("Failed to load reference image")?;
             Some(img.to_rgb8().into_raw())
         } else {
             None
@@ -38,10 +36,9 @@ impl BenchmarkImplementation for JpegDecoderBench {
         let ctx = context
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
-        let cursor = Cursor::new(&ctx.input_data);
-        let mut decoder = Decoder::new(cursor);
-        let pixels = decoder.decode().context("Failed to decode JPEG")?;
-        Ok(pixels)
+        let img = image::load_from_memory_with_format(&ctx.input_data, ImageFormat::WebP)
+            .context("Failed to decode WebP")?;
+        Ok(img.to_rgb8().into_raw())
     }
 
     fn verify(&self, _args: &Args, context: &dyn std::any::Any, output: &[u8]) -> Result<()> {
@@ -54,7 +51,6 @@ impl BenchmarkImplementation for JpegDecoderBench {
             if psnr < 60.0 {
                 anyhow::bail!("PSNR too low: {:.2} dB (threshold: 60.0 dB)", psnr);
             }
-            // println!("Verification passed: PSNR = {:.2} dB", psnr);
         } else {
             anyhow::bail!("No reference data available for verification");
         }
@@ -63,5 +59,5 @@ impl BenchmarkImplementation for JpegDecoderBench {
 }
 
 fn main() -> Result<()> {
-    benchmark_harness::main(JpegDecoderBench)
+    benchmark_harness::main(ImageWebpBench)
 }

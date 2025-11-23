@@ -1,26 +1,28 @@
 use anyhow::{Context, Result};
-use benchmark_harness::{Args, BenchmarkImplementation};
-use image::ImageFormat;
+use benchmark_harness::{Args, BenchmarkImplementation, Quality};
+use jpeg_decoder::Decoder;
 use std::fs;
+use std::io::Cursor;
 
-struct ImagePngBench;
+struct JpegDecoderBench;
 
 struct BenchContext {
     input_data: Vec<u8>,
     reference_pixels: Option<Vec<u8>>,
 }
 
-impl BenchmarkImplementation for ImagePngBench {
+impl BenchmarkImplementation for JpegDecoderBench {
     fn name(&self) -> &'static str {
-        "image-png"
+        "jpeg-decoder-decode"
     }
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         let input_data = fs::read(&args.input).context("Failed to read input file")?;
 
         let reference_pixels = if args.verify {
-            let img = image::load_from_memory_with_format(&input_data, ImageFormat::Png)
-                .context("Failed to load reference image")?;
+            // Use image crate as reference
+            let img =
+                image::load_from_memory(&input_data).context("Failed to load reference image")?;
             Some(img.to_rgb8().into_raw())
         } else {
             None
@@ -36,9 +38,10 @@ impl BenchmarkImplementation for ImagePngBench {
         let ctx = context
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
-        let img = image::load_from_memory_with_format(&ctx.input_data, ImageFormat::Png)
-            .context("Failed to decode PNG")?;
-        Ok(img.to_rgb8().into_raw())
+        let cursor = Cursor::new(&ctx.input_data);
+        let mut decoder = Decoder::new(cursor);
+        let pixels = decoder.decode().context("Failed to decode JPEG")?;
+        Ok(pixels)
     }
 
     fn verify(&self, _args: &Args, context: &dyn std::any::Any, output: &[u8]) -> Result<()> {
@@ -47,10 +50,11 @@ impl BenchmarkImplementation for ImagePngBench {
             .expect("Invalid context");
 
         if let Some(ref reference) = ctx.reference_pixels {
-            // Lossless check
-            if output != reference.as_slice() {
-                anyhow::bail!("Output does not match reference (lossless mismatch)");
+            let psnr = benchmark_harness::calculate_psnr(output, reference)?;
+            if psnr < 60.0 {
+                anyhow::bail!("PSNR too low: {:.2} dB (threshold: 60.0 dB)", psnr);
             }
+            // println!("Verification passed: PSNR = {:.2} dB", psnr);
         } else {
             anyhow::bail!("No reference data available for verification");
         }
@@ -59,5 +63,5 @@ impl BenchmarkImplementation for ImagePngBench {
 }
 
 fn main() -> Result<()> {
-    benchmark_harness::main(ImagePngBench)
+    benchmark_harness::main(JpegDecoderBench)
 }

@@ -3,6 +3,10 @@ name = "bench-zune-png"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "bench-zune-png"
+path = "src/decode.rs"
+
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }
 zune-png = "0.5.0-rc1"

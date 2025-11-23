@@ -3,18 +3,16 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <sstream>
 #include <chrono>
 #include <fstream>
 #include <cstring>
 #include <memory>
 #include <algorithm>
 #include <thread>
-
-#ifdef _WIN32
-#include <intrin.h>
-#else
-#include <x86intrin.h>
-#endif
+#include <cmath>
+#include <stdexcept>
+#include <zlib.h>
 
 struct Args {
     std::string input;
@@ -26,6 +24,7 @@ struct Args {
     bool discard = false;
     bool verify = false;
     bool preallocate = false;
+    double verify_threshold = 60.0;
 };
 
 class BenchmarkImplementation {
@@ -37,35 +36,58 @@ public:
     virtual void verify(const Args& args, const std::vector<uint8_t>& output) = 0;
 };
 
-inline uint32_t crc32(const std::vector<uint8_t>& data) {
-    uint32_t crc = 0;
-    // Simple software CRC32 or use hardware if available.
-    // For now, let's use a simple one or the intrinsic if we are sure about the platform.
-    // The README mentions _mm_crc32_u64.
-    
-    // Using _mm_crc32_u8 for byte-by-byte or u64 for blocks.
-    // Note: This requires -msse4.2
-    
-    size_t i = 0;
-    // Align to 8 bytes
-    // ... (Skipping complex alignment logic for brevity, just doing simple loop for now or hardware intrinsic)
-    
-    // Let's use a simple loop with hardware intrinsic for x86_64
-    uint64_t crc64 = 0;
-    const uint8_t* p = data.data();
-    size_t len = data.size();
-    
-    while (len >= 8) {
-        crc64 = _mm_crc32_u64(crc64, *reinterpret_cast<const uint64_t*>(p));
-        p += 8;
-        len -= 8;
+// Calculate PSNR between two byte arrays
+inline double calculate_psnr(const std::vector<uint8_t>& a, const std::vector<uint8_t>& b) {
+    if (a.size() != b.size()) {
+        throw std::runtime_error("Image size mismatch for PSNR calculation");
     }
-    while (len > 0) {
-        crc64 = _mm_crc32_u8(static_cast<uint32_t>(crc64), *p);
-        p++;
-        len--;
+    
+    double mse = 0.0;
+    for (size_t i = 0; i < a.size(); ++i) {
+        double diff = static_cast<double>(a[i]) - static_cast<double>(b[i]);
+        mse += diff * diff;
     }
-    return static_cast<uint32_t>(crc64);
+    mse /= a.size();
+    
+    if (mse == 0.0) {
+        return INFINITY;
+    }
+    
+    return 10.0 * std::log10(255.0 * 255.0 / mse);
+}
+
+// Verify lossless output (exact byte match)
+inline void verify_lossless(const std::vector<uint8_t>& output, const std::vector<uint8_t>& reference) {
+    if (output.size() != reference.size()) {
+        throw std::runtime_error("Lossless verification failed: size mismatch");
+    }
+    
+    if (output != reference) {
+        // Find first difference
+        for (size_t i = 0; i < output.size(); ++i) {
+            if (output[i] != reference[i]) {
+                std::ostringstream oss;
+                oss << "Lossless verification failed: byte mismatch at offset " << i;
+                throw std::runtime_error(oss.str());
+            }
+        }
+    }
+}
+
+// Verify lossy output (PSNR-based)
+inline void verify_lossy(const std::vector<uint8_t>& output, const std::vector<uint8_t>& reference, double threshold_db) {
+    double psnr = calculate_psnr(output, reference);
+    
+    if (psnr < threshold_db) {
+        std::ostringstream oss;
+        oss << "Lossy verification failed: PSNR " << psnr << " dB below threshold " << threshold_db << " dB";
+        throw std::runtime_error(oss.str());
+    }
+}
+
+inline uint32_t crc32_hash(const std::vector<uint8_t>& data) {
+    // Use zlib's hardware-accelerated CRC32 implementation
+    return ::crc32(0L, data.data(), data.size());
 }
 
 inline Args parse_args(int argc, char** argv) {
@@ -81,6 +103,7 @@ inline Args parse_args(int argc, char** argv) {
         else if (arg == "--discard") args.discard = true;
         else if (arg == "--verify") args.verify = true;
         else if (arg == "--preallocate") args.preallocate = true;
+        else if (arg == "--verify-threshold" && i + 1 < argc) args.verify_threshold = std::stod(argv[++i]);
     }
     return args;
 }
@@ -111,7 +134,7 @@ inline int run_benchmark(int argc, char** argv, BenchmarkImplementation& impl) {
             auto output = impl.run(args);
 
             if (args.discard) {
-                uint32_t c = crc32(output);
+                uint32_t c = crc32_hash(output);
                 // Prevent optimization
                 volatile uint32_t dummy = c;
                 (void)dummy;

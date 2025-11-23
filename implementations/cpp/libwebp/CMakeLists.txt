@@ -2,16 +2,28 @@ cmake_minimum_required(VERSION 3.10)
 project(bench-libwebp)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native")
+
+# Aggressive optimization flags per README
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto -fstrict-aliasing -fomit-frame-pointer -march=native -DNDEBUG")
+set(CMAKE_BUILD_TYPE Release)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fwhole-program-vtables")
+endif()
 
 include_directories(../../../harness/cpp)
 
-# Try to find WebP
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(WEBP REQUIRED libwebp)
+find_package(WebP REQUIRED)
+find_package(ZLIB REQUIRED)
 
-include_directories(${WEBP_INCLUDE_DIRS})
-link_directories(${WEBP_LIBRARY_DIRS})
+add_executable(bench-libwebp decode.cpp)
+target_link_libraries(bench-libwebp WebP::webp ZLIB::ZLIB)
 
-add_executable(bench-libwebp main.cpp)
-target_link_libraries(bench-libwebp ${WEBP_LIBRARIES})
+# Encoder binary
+add_executable(bench-libwebp-encode encode.cpp)
+target_link_libraries(bench-libwebp-encode WebP::webp ZLIB::ZLIB)
+
+# Link mimalloc for consistent allocator
+find_library(MIMALLOC_LIB mimalloc REQUIRED)
+target_link_libraries(bench-libwebp ${MIMALLOC_LIB})
+target_link_libraries(bench-libwebp-encode ${MIMALLOC_LIB})

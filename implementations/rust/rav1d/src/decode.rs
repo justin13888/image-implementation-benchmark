@@ -10,7 +10,7 @@ struct BenchContext {
 
 impl BenchmarkImplementation for Rav1dBench {
     fn name(&self) -> &'static str {
-        "rav1d"
+        "rav1d-decode"
     }
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {

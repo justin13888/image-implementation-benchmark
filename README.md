@@ -6,20 +6,45 @@ This repository contains benchmarks for various image format implementations, co
 
 ### Input Generation
 
-The benchmarks use a tiered collection of images to test different performance characteristics:
+The benchmarks use a tiered collection of images to test different performance characteristics. You select which dataset to use via the `--dataset` flag when running benchmarks.
 
-1. **Standard (L2/L3 Cache Resident):** [KODAK image set](http://r0k.us/graphics/kodak/) (~0.4MP). These images generally fit within the cache of modern CPUs, allowing us to test raw instruction throughput and vectorization efficiency.
-2. **High-Res (Memory Bound):** 20 images from the [DIV2K dataset](https://data.vision.ee.ethz.ch/cvl/DIV2K/) (2K/4K resolution), selected via `scripts/select_div2k.py` using a diversity sampling algorithm (maximizing perceptual hash distance). These test memory bandwidth, allocator pressure, and performance over large buffers.
-3. **Pathological Cases:** Synthetic images designed to stress edge cases:
+#### Available Datasets
+
+1. **KODAK (`--dataset kodak`)** — [KODAK PhotoCD dataset](http://r0k.us/graphics/kodak/) (24 images, ~0.4MP each)
+   * L2/L3 cache resident images
+   * Tests raw instruction throughput and vectorization efficiency
+   * Natural photography with varied content
+
+2. **DIV2K (`--dataset div2k`)** — [DIV2K dataset](https://data.vision.ee.ethz.ch/cvl/DIV2K/) (20 selected images, 2K/4K resolution)
+   * Selected via `scripts/select_div2k.py` using perceptual hash diversity sampling
+   * Tests memory bandwidth, allocator pressure, and large buffer performance
+   * High-resolution, diverse content
+
+3. **Pathological (`--dataset pathological`)** — Synthetic stress tests (4 images)
    * `solid_4k.png` — Solid color (tests RLE/skip optimizations)
    * `noise_4k.png` — Gaussian noise (worst-case for all compressors)
    * `screenshot_4k.png` — UI screenshot with text and flat regions
    * `alpha_gradient_4k.png` — Transparency gradient (for formats supporting alpha)
 
+4. **Test (`--dataset test`)** — Single test file (legacy, minimal coverage)
+   * For quick smoke tests only
+   * Not recommended for comprehensive benchmarking
+
 **Preparation Phase:**
 
 * **For Encoding:** Images are taken as-is and converted to raw PPM (RGB24) or PAM (RGBA32) format.
 * **For Decoding:** Images are pre-encoded using the **reference implementation** of the corresponding format at specific quality tiers.
+
+#### Dataset Selection Strategy
+
+Choose your dataset based on your benchmarking goals:
+
+* **Performance Optimization (`kodak`)** — Best for micro-optimizations and instruction-level tuning. Images fit in cache, minimizing memory system variance.
+* **Real-World Throughput (`div2k`)** — Best for measuring production performance. Tests memory bandwidth, allocator efficiency, and scaling behavior.
+* **Edge Case Validation (`pathological`)** — Best for finding corner cases, testing worst-case performance, and validating optimizations don't break on synthetic inputs.
+* **Quick Validation (`test`)** — Single-image smoke tests only. Not suitable for performance comparison.
+
+**Recommendation:** Run `kodak` for initial development and optimization work, then validate with `div2k` and `pathological` before publishing results.
 
 ### Quality Tiers
 
@@ -190,58 +215,80 @@ Every benchmark run generates a `manifest.json` containing:
 
 This manifest is committed alongside results for full reproducibility.
 
-## How to Run
+## Getting Started
 
-### 1. Setup
+### Prerequisites
 
-Ensure `hyperfine`, `cargo`, `clang`, `cmake`, `mimalloc`, and `imagemagick` are installed.
+* [uv](https://docs.astral.sh/uv/) - Python package manager (install: `curl -LsSf https://astral.sh/uv/install.sh | sh`)
+* Rust toolchain ([rustup](https://rustup.rs/))
+* CMake, Clang, and development libraries
+* ImageMagick, hyperfine, wget, unzip
 
-For C++ implementations, you will need the development headers for the libraries being benchmarked:
+On Ubuntu/Debian:
 
 ```bash
-sudo apt-get install libpng-dev libwebp-dev libavif-dev libdav1d-dev libjxl-dev pkg-config nasm
+sudo apt install build-essential clang cmake libmimalloc-dev \
+  libpng-dev libspng-dev libwebp-dev libavif-dev libdav1d-dev libjxl-dev \
+  pkg-config nasm imagemagick hyperfine wget unzip webp libavif-bin libjxl-tools
 ```
 
+### Setup
+
+1. **Install Python dependencies**:
+
+   ```bash
+   uv sync  # Creates .venv with pillow, imagehash, numpy
+   ```
+
+2. **Download benchmark datasets** (~3.5GB):
+
+   ```bash
+   ./setup_data.sh  # Downloads KODAK, DIV2K, generates pathological tests
+   ```
+
+3. **Build implementations** (see individual implementation directories)
+
+### Running Benchmarks
+
+Use `./bench` with a dataset. Always specify `--dataset` (default `test` has minimal coverage):
+
 ```bash
-# Generates raw PPMs, pre-encoded source files, and pathological images in ./data
-./setup_data.sh
-```
+# Recommended: KODAK dataset (24 images, cache-resident)
+./bench --dataset kodak
 
-### 2. Run Benchmarks
+# High-resolution testing (20 diverse 2K/4K images)
+./bench --dataset div2k
 
-Use the `./bench` script. It handles compilation, execution, and manifest generation.
-
-```bash
-# Run everything (defaults to 10 iterations, 2 warmup, single-threaded)
-./bench
+# Pathological/stress testing (4 synthetic images)
+./bench --dataset pathological
 
 # Run specific formats
-./bench --formats jpeg,avif
+./bench --dataset kodak --formats jpeg,avif
 
-# Run specific type
-./bench --type decode
+# Decode-only benchmarks
+./bench --dataset kodak --type decode
 
-# Parallel benchmarks
-./bench --threads 0
+# Parallel benchmarks (all CPU cores)
+./bench --dataset kodak --threads 0
 
-# Pure compute (discard output I/O)
-./bench --discard-output
+# Discard output I/O (pure compute)
+./bench --dataset kodak --discard-output
 
-# Include correctness verification (slower, but catches bugs)
-./bench --verify
+# With verification (slower)
+./bench --dataset kodak --verify
 
-# Measure peak memory usage (uses /usr/bin/time -v)
-./bench --measure-memory
+# Measure memory usage
+./bench --dataset div2k --measure-memory
 ```
 
-### 3. View Results
+### Results
 
-Results are written to `./results/<timestamp>/`:
+Results are in `./results/<timestamp>/`:
 
-* `summary.md` — Human-readable tables
-* `raw.json` — Full Hyperfine JSON output
-* `manifest.json` — Reproducibility manifest
-* `memory.csv` — Peak RSS per binary (if `--measure-memory` used)
+* `summary.md` - Human-readable tables
+* `raw.json` - Full Hyperfine output
+* `manifest.json` - Reproducibility manifest
+* `memory.csv` - Peak RSS (if `--measure-memory` used)
 
 ## Image Format Implementations
 
@@ -264,7 +311,6 @@ We include modern formats and their most competitive implementations.
 | :------------- | :------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **libpng**     | C        | Reference implementation                                                                                                                                                               |
 | **spng**       | C        | "Simple PNG", speed-optimized                                                                                                                                                          |
-| **fpng**       | C++      | **Non-conformant.** Produces valid PNG but uses non-standard filtering/compression for speed. Results are shown separately and should not be directly compared to conformant encoders. |
 | **png**        | Rust     | Standard `image-rs` crate                                                                                                                                                              |
 | **zune-png**   | Rust     | Highly optimized pure Rust implementation                                                                                                                                              |
 
@@ -300,9 +346,7 @@ We include modern formats and their most competitive implementations.
 
 3. **Image set limitations.** KODAK is compositionally narrow (natural photography). While we supplement with pathological cases, results may not generalize to all image types (e.g., medical imaging, satellite imagery).
 
-4. **Non-conformant implementations.** fpng is labeled separately. Do not draw direct speed comparisons with conformant PNG encoders.
-
-5. **mozjpeg design goals.** mozjpeg prioritizes compression ratio over speed. Its slower encode times are intentional, not a deficiency.
+4. **mozjpeg design goals.** mozjpeg prioritizes compression ratio over speed. Its slower encode times are intentional, not a deficiency.
 
 ## Contributing
 

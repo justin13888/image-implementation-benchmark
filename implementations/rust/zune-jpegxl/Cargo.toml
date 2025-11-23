@@ -3,8 +3,13 @@ name = "bench-zune-jpegxl"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "bench-zune-jpegxl"
+path = "src/encode.rs"
+
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }
 zune-jpegxl = "0.5.0-rc1"
+zune-core = "0.5.0-rc1"
 anyhow = "1.0"
 image = "0.24"

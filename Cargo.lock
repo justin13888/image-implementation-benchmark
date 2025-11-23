@@ -250,6 +250,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bench-null"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "benchmark-harness",
+ "crc32fast",
+]
+
+[[package]]
 name = "bench-rav1d"
 version = "0.1.0"
 dependencies = [
@@ -277,6 +286,17 @@ dependencies = [
  "benchmark-harness",
  "image",
  "zune-jpeg",
+]
+
+[[package]]
+name = "bench-zune-jpegxl"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "benchmark-harness",
+ "image",
+ "zune-core",
+ "zune-jpegxl",
 ]
 
 [[package]]
@@ -2278,6 +2298,15 @@ name = "zune-jpeg"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc6fb7703e32e9a07fb3f757360338b3a567a5054f21b5f52a666752e333d58e"
+dependencies = [
+ "zune-core",
+]
+
+[[package]]
+name = "zune-jpegxl"
+version = "0.5.0-rc1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "684c65a36dd1f7993d01a5431fb23d23069c74409254b27ef4654e698217617e"
 dependencies = [
  "zune-core",
 ]

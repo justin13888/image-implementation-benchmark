@@ -3,23 +3,23 @@ use benchmark_harness::{Args, BenchmarkImplementation};
 use image::ImageFormat;
 use std::fs;
 
-struct ImageWebpBench;
+struct ImagePngBench;
 
 struct BenchContext {
     input_data: Vec<u8>,
     reference_pixels: Option<Vec<u8>>,
 }
 
-impl BenchmarkImplementation for ImageWebpBench {
+impl BenchmarkImplementation for ImagePngBench {
     fn name(&self) -> &'static str {
-        "image-webp"
+        "image-png-decode"
     }
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         let input_data = fs::read(&args.input).context("Failed to read input file")?;
 
         let reference_pixels = if args.verify {
-            let img = image::load_from_memory_with_format(&input_data, ImageFormat::WebP)
+            let img = image::load_from_memory_with_format(&input_data, ImageFormat::Png)
                 .context("Failed to load reference image")?;
             Some(img.to_rgb8().into_raw())
         } else {
@@ -36,8 +36,8 @@ impl BenchmarkImplementation for ImageWebpBench {
         let ctx = context
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
-        let img = image::load_from_memory_with_format(&ctx.input_data, ImageFormat::WebP)
-            .context("Failed to decode WebP")?;
+        let img = image::load_from_memory_with_format(&ctx.input_data, ImageFormat::Png)
+            .context("Failed to decode PNG")?;
         Ok(img.to_rgb8().into_raw())
     }
 
@@ -47,9 +47,9 @@ impl BenchmarkImplementation for ImageWebpBench {
             .expect("Invalid context");
 
         if let Some(ref reference) = ctx.reference_pixels {
-            let psnr = benchmark_harness::calculate_psnr(output, reference)?;
-            if psnr < 60.0 {
-                anyhow::bail!("PSNR too low: {:.2} dB (threshold: 60.0 dB)", psnr);
+            // Lossless check
+            if output != reference.as_slice() {
+                anyhow::bail!("Output does not match reference (lossless mismatch)");
             }
         } else {
             anyhow::bail!("No reference data available for verification");
@@ -59,5 +59,5 @@ impl BenchmarkImplementation for ImageWebpBench {
 }
 
 fn main() -> Result<()> {
-    benchmark_harness::main(ImageWebpBench)
+    benchmark_harness::main(ImagePngBench)
 }

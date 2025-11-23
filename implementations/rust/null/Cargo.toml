@@ -1,14 +1,17 @@
 [package]
-name = "bench-zune-jpeg"
+name = "bench-null"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "bench-zune-jpeg"
+name = "bench-null"
 path = "src/decode.rs"
 
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }
-zune-jpeg = "0.5"
 anyhow = "1.0"
-image = "0.24"
+crc32fast = "1.3"
+
+[profile.release]
+lto = true
+codegen-units = 1

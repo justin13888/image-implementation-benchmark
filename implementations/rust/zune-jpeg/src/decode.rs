@@ -12,7 +12,7 @@ struct BenchContext {
 
 impl BenchmarkImplementation for ZuneJpegBench {
     fn name(&self) -> &'static str {
-        "zune-jpeg"
+        "zune-jpeg-decode"
     }
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {

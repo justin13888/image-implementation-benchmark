@@ -2,19 +2,30 @@ cmake_minimum_required(VERSION 3.10)
 project(bench-libjxl)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native")
+
+# Aggressive optimization flags per README
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto -fstrict-aliasing -fomit-frame-pointer -march=native -DNDEBUG")
+set(CMAKE_BUILD_TYPE Release)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fwhole-program-vtables")
+endif()
 
 include_directories(../../../harness/cpp)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(JXL REQUIRED libjxl)
-pkg_check_modules(JXL_THREADS REQUIRED libjxl_threads)
+pkg_check_modules(JXL REQUIRED IMPORTED_TARGET libjxl)
+pkg_check_modules(JXL_THREADS REQUIRED IMPORTED_TARGET libjxl_threads)
+find_package(ZLIB REQUIRED)
 
-include_directories(${JXL_INCLUDE_DIRS} ${JXL_THREADS_INCLUDE_DIRS})
-link_directories(${JXL_LIBRARY_DIRS} ${JXL_THREADS_LIBRARY_DIRS})
+add_executable(bench-libjxl decode.cpp)
+target_link_libraries(bench-libjxl PkgConfig::JXL PkgConfig::JXL_THREADS ZLIB::ZLIB)
 
-add_executable(bench-libjxl main.cpp)
-target_link_libraries(bench-libjxl ${JXL_LIBRARIES} ${JXL_THREADS_LIBRARIES})
+# Encoder binary
+add_executable(bench-libjxl-encode encode.cpp)
+target_link_libraries(bench-libjxl-encode PkgConfig::JXL PkgConfig::JXL_THREADS ZLIB::ZLIB)
 
-add_executable(encode-jxl encode.cpp)
-target_link_libraries(encode-jxl ${JXL_LIBRARIES} ${JXL_THREADS_LIBRARIES})
+# Link mimalloc for consistent allocator
+find_library(MIMALLOC_LIB mimalloc REQUIRED)
+target_link_libraries(bench-libjxl ${MIMALLOC_LIB})
+target_link_libraries(bench-libjxl-encode ${MIMALLOC_LIB})

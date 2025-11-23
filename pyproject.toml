@@ -1,0 +1,11 @@
+[project]
+name = "image-implementation-benchmark"
+version = "0.1.0"
+description = "Image codec implementation benchmarks"
+requires-python = ">=3.8"
+dependencies = [
+    "pillow",
+    "imagehash",
+    "numpy",
+    "scipy>=1.10.1",
+]

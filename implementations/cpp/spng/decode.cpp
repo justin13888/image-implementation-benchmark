@@ -6,7 +6,7 @@
 
 class SpngBench : public BenchmarkImplementation {
 public:
-    std::string name() const override { return "spng"; }
+    std::string name() const override { return "spng-decode"; }
 
     void prepare(const Args& args) override {
         std::ifstream file(args.input, std::ios::binary | std::ios::ate);

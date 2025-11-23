@@ -3,6 +3,10 @@ name = "bench-jxl-oxide"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "bench-jxl-oxide"
+path = "src/decode.rs"
+
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }
 jxl-oxide = "0.12"

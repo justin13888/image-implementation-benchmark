@@ -7,7 +7,7 @@
 
 class LibAvifBench : public BenchmarkImplementation {
 public:
-    std::string name() const override { return "libavif"; }
+    std::string name() const override { return "libavif-decode"; }
 
     void prepare(const Args& args) override {
         std::ifstream file(args.input, std::ios::binary | std::ios::ate);

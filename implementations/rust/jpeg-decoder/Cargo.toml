@@ -3,6 +3,10 @@ name = "bench-jpeg-decoder"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "bench-jpeg-decoder"
+path = "src/decode.rs"
+
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }
 jpeg-decoder = "0.3"

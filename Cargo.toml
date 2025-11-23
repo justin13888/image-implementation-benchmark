@@ -1,14 +1,7 @@
 [workspace]
 members = [
     "harness/rust",
-    "implementations/rust/jpeg-decoder",
-    "implementations/rust/zune-jpeg",
-    "implementations/rust/image-png",
-    "implementations/rust/zune-png",
-    "implementations/rust/image-webp",
-    "implementations/rust/rav1e",
-    "implementations/rust/rav1d",
-    "implementations/rust/jxl-oxide",
+    "implementations/rust/*",
 ]
 resolver = "2"
 

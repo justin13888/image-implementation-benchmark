@@ -4,9 +4,9 @@
 #include <stdexcept>
 #include <fstream>
 
-class LibJpegBench : public BenchmarkImplementation {
+class MozJpegBench : public BenchmarkImplementation {
 public:
-    std::string name() const override { return "libjpeg-turbo"; }
+    std::string name() const override { return "mozjpeg-decode"; }
 
     void prepare(const Args& args) override {
         // Load input file
@@ -62,6 +62,6 @@ private:
 };
 
 int main(int argc, char** argv) {
-    LibJpegBench bench;
+    MozJpegBench bench;
     return run_benchmark(argc, argv, bench);
 }
