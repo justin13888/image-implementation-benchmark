@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+
+echo "Linting C++..."
+# Find all .cpp and .h files and run clang-format on them
+git ls-files --cached --others --exclude-standard \
+    | grep -E '\.(cpp|cc|cxx|h|hpp|hxx)$' \
+    | xargs -r -n 10 -P $(nproc) clang-format -i -style=file
+
+echo "Linting Python..."
+# Run ruff check with fix and format on the current directory
+uv run ruff check --fix .
+uv run ruff format .
+
+echo "Linting Rust..."
+# Run cargo fmt and clippy
+cargo fmt
+cargo clippy --fix --allow-dirty --allow-staged -- -D warnings
+
+echo "Linting complete."

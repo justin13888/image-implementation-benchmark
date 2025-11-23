@@ -11,7 +11,7 @@ struct BenchContext {
     input_data: Vec<u8>,
     width: usize,
     height: usize,
-    quality: Quality,
+    _quality: Quality,
 }
 
 impl BenchmarkImplementation for ZuneJxlBench {
@@ -30,7 +30,7 @@ impl BenchmarkImplementation for ZuneJxlBench {
             input_data,
             width,
             height,
-            quality: args.quality,
+            _quality: args.quality,
         }))
     }
 

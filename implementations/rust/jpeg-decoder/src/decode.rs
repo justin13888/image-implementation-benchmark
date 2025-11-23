@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use benchmark_harness::{Args, BenchmarkImplementation, Quality};
+use benchmark_harness::{Args, BenchmarkImplementation};
 use jpeg_decoder::Decoder;
 use std::fs;
 use std::io::Cursor;
@@ -52,7 +52,7 @@ impl BenchmarkImplementation for JpegDecoderBench {
         if let Some(ref reference) = ctx.reference_pixels {
             let psnr = benchmark_harness::calculate_psnr(output, reference)?;
             if psnr < 60.0 {
-                anyhow::bail!("PSNR too low: {:.2} dB (threshold: 60.0 dB)", psnr);
+                anyhow::bail!("PSNR too low: {psnr:.2} dB (threshold: 60.0 dB)");
             }
             // println!("Verification passed: PSNR = {:.2} dB", psnr);
         } else {

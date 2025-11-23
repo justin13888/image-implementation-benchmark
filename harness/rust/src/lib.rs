@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use std::fs;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
 
 #[cfg(feature = "mimalloc")]
 use mimalloc::MiMalloc;

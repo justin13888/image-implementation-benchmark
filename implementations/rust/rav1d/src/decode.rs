@@ -5,7 +5,7 @@ use std::fs;
 struct Rav1dBench;
 
 struct BenchContext {
-    input_data: Vec<u8>,
+    _input_data: Vec<u8>,
 }
 
 impl BenchmarkImplementation for Rav1dBench {
@@ -15,11 +15,13 @@ impl BenchmarkImplementation for Rav1dBench {
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         let input_data = fs::read(&args.input).context("Failed to read input file")?;
-        Ok(Box::new(BenchContext { input_data }))
+        Ok(Box::new(BenchContext {
+            _input_data: input_data,
+        }))
     }
 
     fn run(&self, _args: &Args, context: &mut dyn std::any::Any) -> Result<Vec<u8>> {
-        let ctx = context
+        let _ctx = context
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
         // rav1d API usage is complex and might require unsafe or C-like interaction.

@@ -8,7 +8,7 @@ struct JxlOxideBench;
 
 struct BenchContext {
     input_data: Vec<u8>,
-    reference_pixels: Option<Vec<u8>>,
+    _reference_pixels: Option<Vec<u8>>,
 }
 
 impl BenchmarkImplementation for JxlOxideBench {
@@ -33,12 +33,12 @@ impl BenchmarkImplementation for JxlOxideBench {
             // Actually, let's try to use `image` crate if it has jxl feature enabled in workspace?
             // No, we didn't enable it.
             // Let's just decode using jxl-oxide for now.
-            let mut image = JxlImage::builder()
+            let _image = JxlImage::builder()
                 .read(Cursor::new(&input_data))
-                .map_err(|e| anyhow::anyhow!("Failed to read JXL header: {}", e))?;
-            let render = image
+                .map_err(|e| anyhow::anyhow!("Failed to read JXL header: {e}"))?;
+            let _render = _image
                 .render_frame(0)
-                .map_err(|e| anyhow::anyhow!("Failed to render frame: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to render frame: {e}"))?;
             // Convert to RGB8
             // This is complex. Let's skip verification implementation details for now or implement a simple one.
             None
@@ -48,7 +48,7 @@ impl BenchmarkImplementation for JxlOxideBench {
 
         Ok(Box::new(BenchContext {
             input_data,
-            reference_pixels,
+            _reference_pixels: reference_pixels,
         }))
     }
 
@@ -56,12 +56,12 @@ impl BenchmarkImplementation for JxlOxideBench {
         let ctx = context
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
-        let mut image = JxlImage::builder()
+        let image = JxlImage::builder()
             .read(Cursor::new(&ctx.input_data))
-            .map_err(|e| anyhow::anyhow!("Failed to read JXL header: {}", e))?;
-        let render = image
+            .map_err(|e| anyhow::anyhow!("Failed to read JXL header: {e}"))?;
+        let _render = image
             .render_frame(0)
-            .map_err(|e| anyhow::anyhow!("Failed to render frame: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to render frame: {e}"))?;
 
         // We need to return bytes.
         // render.image() returns a grid.

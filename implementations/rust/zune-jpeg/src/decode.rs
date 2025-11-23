@@ -49,7 +49,7 @@ impl BenchmarkImplementation for ZuneJpegBench {
         if let Some(ref reference) = ctx.reference_pixels {
             let psnr = benchmark_harness::calculate_psnr(output, reference)?;
             if psnr < 60.0 {
-                anyhow::bail!("PSNR too low: {:.2} dB (threshold: 60.0 dB)", psnr);
+                anyhow::bail!("PSNR too low: {psnr:.2} dB (threshold: 60.0 dB)");
             }
         } else {
             anyhow::bail!("No reference data available for verification");

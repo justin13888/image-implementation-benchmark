@@ -38,12 +38,14 @@ impl BenchmarkImplementation for Rav1eBench {
             .expect("Invalid context");
 
         // Configure encoder
-        let mut enc_config = EncoderConfig::default();
-        enc_config.width = ctx.width;
-        enc_config.height = ctx.height;
-        enc_config.time_base = Rational::new(1, 30);
-        enc_config.bit_depth = 8;
-        enc_config.chroma_sampling = ChromaSampling::Cs420;
+        let mut enc_config = EncoderConfig {
+            width: ctx.width,
+            height: ctx.height,
+            time_base: Rational::new(1, 30),
+            bit_depth: 8,
+            chroma_sampling: ChromaSampling::Cs420,
+            ..Default::default()
+        };
 
         match ctx.quality {
             Quality::WebLow => {
@@ -116,7 +118,7 @@ impl BenchmarkImplementation for Rav1eBench {
                     output.extend_from_slice(&pkt.data);
                 }
                 Err(EncoderStatus::Encoded) | Err(EncoderStatus::LimitReached) => break,
-                Err(e) => anyhow::bail!("Encoding error: {:?}", e),
+                Err(e) => anyhow::bail!("Encoding error: {e:?}"),
             }
         }
 
