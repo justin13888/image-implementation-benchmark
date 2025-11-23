@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-set -x
+# set -x
 mkdir -p data data/kodak data/div2k data/pathological
 
 echo "=== Image Implementation Benchmark Data Setup ==="
