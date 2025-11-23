@@ -1,10 +1,9 @@
-#include <jpeglib.h>
-
 #include <fstream>
 #include <stdexcept>
 #include <vector>
 
 #include "benchmark_harness.hpp"
+#include "jpeg_wrapper.h"
 
 class MozjpegEncodeBench : public BenchmarkImplementation {
  public:
