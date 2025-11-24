@@ -15,10 +15,12 @@ include_directories(../../../harness/cpp)
 
 find_package(ZLIB REQUIRED)
 find_library(SPNG_LIB spng REQUIRED)
-
-add_executable(bench-spng decode.cpp)
-target_link_libraries(bench-spng ${SPNG_LIB} ZLIB::ZLIB)
-
-# Link mimalloc for consistent allocator
 find_library(MIMALLOC_LIB mimalloc REQUIRED)
-target_link_libraries(bench-spng ${MIMALLOC_LIB})
+
+# Decoder binary
+add_executable(bench-spng-decode decode.cpp)
+target_link_libraries(bench-spng-decode ${SPNG_LIB} ZLIB::ZLIB ${MIMALLOC_LIB})
+
+# Encoder binary
+add_executable(bench-spng-encode encode.cpp)
+target_link_libraries(bench-spng-encode ${SPNG_LIB} ZLIB::ZLIB ${MIMALLOC_LIB})

@@ -15,15 +15,12 @@ include_directories(../../../harness/cpp)
 
 find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
+find_library(MIMALLOC_LIB mimalloc REQUIRED)
 
-add_executable(bench-libpng decode.cpp)
-target_link_libraries(bench-libpng PNG::PNG ZLIB::ZLIB)
+# Decoder binary
+add_executable(bench-libpng-decode decode.cpp)
+target_link_libraries(bench-libpng-decode PNG::PNG ZLIB::ZLIB ${MIMALLOC_LIB})
 
 # Encoder binary
 add_executable(bench-libpng-encode encode.cpp)
-target_link_libraries(bench-libpng-encode PNG::PNG ZLIB::ZLIB)
-
-# Link mimalloc for consistent allocator
-find_library(MIMALLOC_LIB mimalloc REQUIRED)
-target_link_libraries(bench-libpng ${MIMALLOC_LIB})
-target_link_libraries(bench-libpng-encode ${MIMALLOC_LIB})
+target_link_libraries(bench-libpng-encode PNG::PNG ZLIB::ZLIB ${MIMALLOC_LIB})

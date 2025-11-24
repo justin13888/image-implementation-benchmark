@@ -15,15 +15,12 @@ include_directories(../../../harness/cpp)
 
 find_package(JPEG REQUIRED)
 find_package(ZLIB REQUIRED)
+find_library(MIMALLOC_LIB mimalloc REQUIRED)
 
-add_executable(bench-libjpeg-turbo decode.cpp)
-target_link_libraries(bench-libjpeg-turbo JPEG::JPEG ZLIB::ZLIB)
+# Decoder binary
+add_executable(bench-libjpeg-turbo-decode decode.cpp)
+target_link_libraries(bench-libjpeg-turbo-decode JPEG::JPEG ZLIB::ZLIB ${MIMALLOC_LIB})
 
 # Encoder binary
 add_executable(bench-libjpeg-turbo-encode encode.cpp)
-target_link_libraries(bench-libjpeg-turbo-encode JPEG::JPEG ZLIB::ZLIB)
-
-# Link mimalloc for consistent allocator
-find_library(MIMALLOC_LIB mimalloc REQUIRED)
-target_link_libraries(bench-libjpeg-turbo ${MIMALLOC_LIB})
-target_link_libraries(bench-libjpeg-turbo-encode ${MIMALLOC_LIB})
+target_link_libraries(bench-libjpeg-turbo-encode JPEG::JPEG ZLIB::ZLIB ${MIMALLOC_LIB})

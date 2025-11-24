@@ -45,35 +45,36 @@ DATASETS = {
 IMPLEMENTATIONS = {
     "null": [
         {
-            "name": "null-cpp",
+            "name": "null-cpp-decode",
             "lang": "cpp",
             "bin": "implementations/cpp/null/build/bench-null-decode",
             "type": "decode",
         },
         {
-            "name": "null-rust",
+            "name": "null-rust-decode",
             "lang": "rust",
-            "bin": "target/release/bench-null",
+            "bin": "target/release/bench-null-decode",
             "type": "decode",
         },
+        # TODO: Add null encode
     ],
     "jpeg": [
         {
-            "name": "jpeg-decoder",
+            "name": "jpeg-decoder-decode",
             "lang": "rust",
-            "bin": "target/release/bench-jpeg-decoder",
+            "bin": "target/release/bench-jpeg-decoder-decode",
             "type": "decode",
         },
         {
-            "name": "zune-jpeg",
+            "name": "zune-jpeg-decode",
             "lang": "rust",
-            "bin": "target/release/bench-zune-jpeg",
+            "bin": "target/release/bench-zune-jpeg-decode",
             "type": "decode",
         },
         {
-            "name": "libjpeg-turbo",
+            "name": "libjpeg-turbo-decode",
             "lang": "cpp",
-            "bin": "implementations/cpp/libjpeg-turbo/build/bench-libjpeg-turbo",
+            "bin": "implementations/cpp/libjpeg-turbo/build/bench-libjpeg-turbo-decode",
             "type": "decode",
         },
         {
@@ -83,9 +84,9 @@ IMPLEMENTATIONS = {
             "type": "encode",
         },
         {
-            "name": "mozjpeg",
+            "name": "mozjpeg-decode",
             "lang": "cpp",
-            "bin": "implementations/cpp/mozjpeg/build/bench-mozjpeg",
+            "bin": "implementations/cpp/mozjpeg/build/bench-mozjpeg-decode",
             "type": "decode",
         },
         {
@@ -97,21 +98,33 @@ IMPLEMENTATIONS = {
     ],
     "png": [
         {
-            "name": "image-png",
+            "name": "image-png-decode",
             "lang": "rust",
-            "bin": "target/release/bench-image-png",
+            "bin": "target/release/bench-image-png-decode",
             "type": "decode",
         },
         {
-            "name": "zune-png",
+            "name": "image-png-encode",
             "lang": "rust",
-            "bin": "target/release/bench-zune-png",
+            "bin": "target/release/bench-image-png-encode",
+            "type": "encode",
+        },
+        {
+            "name": "zune-png-decode",
+            "lang": "rust",
+            "bin": "target/release/bench-zune-png-decode",
             "type": "decode",
         },
         {
-            "name": "libpng",
+            "name": "zune-png-encode",
+            "lang": "rust",
+            "bin": "target/release/bench-zune-png-encode",
+            "type": "encode",
+        },
+        {
+            "name": "libpng-decode",
             "lang": "cpp",
-            "bin": "implementations/cpp/libpng/build/bench-libpng",
+            "bin": "implementations/cpp/libpng/build/bench-libpng-decode",
             "type": "decode",
         },
         {
@@ -121,23 +134,35 @@ IMPLEMENTATIONS = {
             "type": "encode",
         },
         {
-            "name": "spng",
+            "name": "spng-decode",
             "lang": "cpp",
-            "bin": "implementations/cpp/spng/build/bench-spng",
+            "bin": "implementations/cpp/spng/build/bench-spng-decode",
             "type": "decode",
+        },
+        {
+            "name": "spng-encode",
+            "lang": "cpp",
+            "bin": "implementations/cpp/spng/build/bench-spng-encode",
+            "type": "encode",
         },
     ],
     "webp": [
         {
-            "name": "image-webp",
+            "name": "image-webp-decode",
             "lang": "rust",
-            "bin": "target/release/bench-image-webp",
+            "bin": "target/release/bench-image-webp-decode",
             "type": "decode",
         },
         {
-            "name": "libwebp",
+            "name": "image-webp-encode",
+            "lang": "rust",
+            "bin": "target/release/bench-image-webp-encode",
+            "type": "encode",
+        },
+        {
+            "name": "libwebp-decode",
             "lang": "cpp",
-            "bin": "implementations/cpp/libwebp/build/bench-libwebp",
+            "bin": "implementations/cpp/libwebp/build/bench-libwebp-decode",
             "type": "decode",
         },
         {
@@ -149,21 +174,21 @@ IMPLEMENTATIONS = {
     ],
     "avif": [
         {
-            "name": "rav1e",
+            "name": "rav1e-encode",
             "lang": "rust",
-            "bin": "target/release/bench-rav1e",
+            "bin": "target/release/bench-rav1e-encode",
             "type": "encode",
         },
         {
-            "name": "rav1d",
+            "name": "rav1d-decode",
             "lang": "rust",
-            "bin": "target/release/bench-rav1d",
+            "bin": "target/release/bench-rav1d-decode",
             "type": "decode",
         },
         {
-            "name": "libavif",
+            "name": "libavif-decode",
             "lang": "cpp",
-            "bin": "implementations/cpp/libavif/build/bench-libavif",
+            "bin": "implementations/cpp/libavif/build/bench-libavif-decode",
             "type": "decode",
         },
         {
@@ -173,29 +198,29 @@ IMPLEMENTATIONS = {
             "type": "encode",
         },
         {
-            "name": "dav1d",
+            "name": "dav1d-decode",
             "lang": "cpp",
-            "bin": "implementations/cpp/dav1d/build/bench-dav1d",
+            "bin": "implementations/cpp/dav1d/build/bench-dav1d-decode",
             "type": "decode",
         },
     ],
     "jxl": [
         {
-            "name": "jxl-oxide",
+            "name": "jxl-oxide-decode",
             "lang": "rust",
-            "bin": "target/release/bench-jxl-oxide",
+            "bin": "target/release/bench-jxl-oxide-decode",
             "type": "decode",
         },
         {
-            "name": "zune-jpegxl",
+            "name": "zune-jpegxl-encode",
             "lang": "rust",
-            "bin": "target/release/bench-zune-jpegxl",
+            "bin": "target/release/bench-zune-jpegxl-encode",
             "type": "encode",
         },
         {
-            "name": "libjxl",
+            "name": "libjxl-decode",
             "lang": "cpp",
-            "bin": "implementations/cpp/libjxl/build/bench-libjxl",
+            "bin": "implementations/cpp/libjxl/build/bench-libjxl-decode",
             "type": "decode",
         },
         {
@@ -356,7 +381,15 @@ def build_projects(formats: List[str], skip_build: bool):
             try:
                 # Configure with CMake
                 result = subprocess.run(
-                    ["cmake", "..", "-DCMAKE_BUILD_TYPE=Release"],
+                    [
+                        "cmake",
+                        "..",
+                        "-DCMAKE_BUILD_TYPE=Release",
+                        "-D",
+                        "CMAKE_C_COMPILER_LAUNCHER=ccache",
+                        "-D",
+                        "CMAKE_CXX_COMPILER_LAUNCHER=ccache",
+                    ],
                     cwd=build_dir,
                     check=True,
                     capture_output=True,

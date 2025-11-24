@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "bench-zune-jpeg"
+name = "bench-zune-jpeg-decode"
 path = "src/decode.rs"
 
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }
 zune-jpeg = "0.5"
 anyhow = "1.0"
-image = "0.24"
+image = "0.25.9"

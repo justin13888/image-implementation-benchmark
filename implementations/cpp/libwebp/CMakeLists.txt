@@ -15,15 +15,12 @@ include_directories(../../../harness/cpp)
 
 find_package(WebP REQUIRED)
 find_package(ZLIB REQUIRED)
+find_library(MIMALLOC_LIB mimalloc REQUIRED)
 
-add_executable(bench-libwebp decode.cpp)
-target_link_libraries(bench-libwebp WebP::webp ZLIB::ZLIB)
+# Decoder binary
+add_executable(bench-libwebp-decode decode.cpp)
+target_link_libraries(bench-libwebp-decode WebP::webp ZLIB::ZLIB ${MIMALLOC_LIB})
 
 # Encoder binary
 add_executable(bench-libwebp-encode encode.cpp)
-target_link_libraries(bench-libwebp-encode WebP::webp ZLIB::ZLIB)
-
-# Link mimalloc for consistent allocator
-find_library(MIMALLOC_LIB mimalloc REQUIRED)
-target_link_libraries(bench-libwebp ${MIMALLOC_LIB})
-target_link_libraries(bench-libwebp-encode ${MIMALLOC_LIB})
+target_link_libraries(bench-libwebp-encode WebP::webp ZLIB::ZLIB ${MIMALLOC_LIB})

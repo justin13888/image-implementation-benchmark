@@ -17,15 +17,12 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(JXL REQUIRED IMPORTED_TARGET libjxl)
 pkg_check_modules(JXL_THREADS REQUIRED IMPORTED_TARGET libjxl_threads)
 find_package(ZLIB REQUIRED)
+find_library(MIMALLOC_LIB mimalloc REQUIRED)
 
-add_executable(bench-libjxl decode.cpp)
-target_link_libraries(bench-libjxl PkgConfig::JXL PkgConfig::JXL_THREADS ZLIB::ZLIB)
+# Decoder binary
+add_executable(bench-libjxl-decode decode.cpp)
+target_link_libraries(bench-libjxl-decode PkgConfig::JXL PkgConfig::JXL_THREADS ZLIB::ZLIB ${MIMALLOC_LIB})
 
 # Encoder binary
 add_executable(bench-libjxl-encode encode.cpp)
-target_link_libraries(bench-libjxl-encode PkgConfig::JXL PkgConfig::JXL_THREADS ZLIB::ZLIB)
-
-# Link mimalloc for consistent allocator
-find_library(MIMALLOC_LIB mimalloc REQUIRED)
-target_link_libraries(bench-libjxl ${MIMALLOC_LIB})
-target_link_libraries(bench-libjxl-encode ${MIMALLOC_LIB})
+target_link_libraries(bench-libjxl-encode PkgConfig::JXL PkgConfig::JXL_THREADS ZLIB::ZLIB ${MIMALLOC_LIB})

@@ -15,15 +15,12 @@ include_directories(../../../harness/cpp)
 
 find_package(libavif REQUIRED)
 find_package(ZLIB REQUIRED)
+find_library(MIMALLOC_LIB mimalloc REQUIRED)
 
-add_executable(bench-libavif decode.cpp)
-target_link_libraries(bench-libavif avif ZLIB::ZLIB)
+# Decoder binary
+add_executable(bench-libavif-decode decode.cpp)
+target_link_libraries(bench-libavif-decode avif ZLIB::ZLIB ${MIMALLOC_LIB})
 
 # Encoder binary
 add_executable(bench-libavif-encode encode.cpp)
-target_link_libraries(bench-libavif-encode avif ZLIB::ZLIB)
-
-# Link mimalloc for consistent allocator
-find_library(MIMALLOC_LIB mimalloc REQUIRED)
-target_link_libraries(bench-libavif ${MIMALLOC_LIB})
-target_link_libraries(bench-libavif-encode ${MIMALLOC_LIB})
+target_link_libraries(bench-libavif-encode avif ZLIB::ZLIB ${MIMALLOC_LIB})

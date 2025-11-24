@@ -227,7 +227,7 @@ This manifest is committed alongside results for full reproducibility.
 On Ubuntu/Debian:
 
 ```bash
-sudo apt install build-essential clang clang-format cmake libmimalloc-dev \
+sudo apt install build-essential clang clang-format cmake ccache libmimalloc-dev \
   libpng-dev libspng-dev libwebp-dev libavif-dev libdav1d-dev libjxl-dev \
   pkg-config nasm imagemagick hyperfine wget unzip webp libavif-bin libjxl-tools
 ```

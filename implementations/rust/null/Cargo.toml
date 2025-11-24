@@ -4,8 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "bench-null"
+name = "bench-null-decode"
 path = "src/decode.rs"
+
+[[bin]]
+name = "bench-null-encode"
+path = "src/encode.rs"
 
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }

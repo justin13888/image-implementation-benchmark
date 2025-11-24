@@ -17,10 +17,8 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(DAV1D REQUIRED IMPORTED_TARGET dav1d)
 find_package(libavif REQUIRED)
 find_package(ZLIB REQUIRED)
-
-add_executable(bench-dav1d decode.cpp)
-target_link_libraries(bench-dav1d PkgConfig::DAV1D avif ZLIB::ZLIB)
-
-# Link mimalloc for consistent allocator
 find_library(MIMALLOC_LIB mimalloc REQUIRED)
-target_link_libraries(bench-dav1d ${MIMALLOC_LIB})
+
+# Decoder binary
+add_executable(bench-dav1d-decode decode.cpp)
+target_link_libraries(bench-dav1d-decode PkgConfig::DAV1D avif ZLIB::ZLIB ${MIMALLOC_LIB})
