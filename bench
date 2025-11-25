@@ -264,12 +264,12 @@ IMPLEMENTATIONS: Dict[ImageFormat, list[Implementation]] = {
             bin="target/release/bench-rav1e-encode",
             type="encode",
         ),
-        Implementation(
-            name="rav1d-decode",
-            lang="rust",
-            bin="target/release/bench-rav1d-decode",
-            type="decode",
-        ),
+        # Implementation(
+        #     name="rav1d-decode",
+        #     lang="rust",
+        #     bin="target/release/bench-rav1d-decode",
+        #     type="decode",
+        # ), // TODO: Finish rav1d
         Implementation(
             name="libavif-decode",
             lang="cpp",

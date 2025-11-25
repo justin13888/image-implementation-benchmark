@@ -307,12 +307,12 @@ We include modern formats and their most competitive implementations.
 
 ### PNG
 
-| Implementation | Language | Notes                                                                                                                                                                                  |
-| :------------- | :------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **libpng**     | C        | Reference implementation                                                                                                                                                               |
-| **spng**       | C        | "Simple PNG", speed-optimized                                                                                                                                                          |
-| **png**        | Rust     | Standard `image-rs` crate                                                                                                                                                              |
-| **zune-png**   | Rust     | Highly optimized pure Rust implementation                                                                                                                                              |
+| Implementation | Language | Notes                                     |
+| :------------- | :------- | :---------------------------------------- |
+| **libpng**     | C        | Reference implementation                  |
+| **spng**       | C        | "Simple PNG", speed-optimized             |
+| **png**        | Rust     | Standard `image-rs` crate                 |
+| **zune-png**   | Rust     | Highly optimized pure Rust implementation |
 
 ### WEBP
 
@@ -323,12 +323,13 @@ We include modern formats and their most competitive implementations.
 
 ### AVIF
 
-| Implementation | Language | Notes                                                 |
-| :------------- | :------- | :---------------------------------------------------- |
-| **libavif**    | C        | Reference (AOM/dav1d backend)                         |
-| **dav1d**      | C/Asm    | Direct decoder (bypasses libavif wrapper)             |
-| **rav1e**      | Rust     | Encoder                                               |
-| **rav1d**      | Rust     | Port of dav1d. Approaching stability as of late 2025. |
+| Implementation | Language | Notes                                     |
+| :------------- | :------- | :---------------------------------------- |
+| **libavif**    | C        | Reference (AOM/dav1d backend)             |
+| **dav1d**      | C/Asm    | Direct decoder (bypasses libavif wrapper) |
+| **rav1e**      | Rust     | Encoder                                   |
+
+<!-- | **rav1d**      | Rust     | Port of dav1d. Approaching stability as of late 2025. | -->
 
 ### JPEG XL
 
