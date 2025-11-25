@@ -266,7 +266,7 @@ Use `./bench` with a dataset. Always specify `--dataset` (default `test` has min
 ./bench --dataset kodak --formats jpeg,avif
 
 # Decode-only benchmarks
-./bench --dataset kodak --type decode
+./bench --dataset kodak --mode decode
 
 # Parallel benchmarks (all CPU cores)
 ./bench --dataset kodak --threads 0
