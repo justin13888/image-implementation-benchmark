@@ -287,6 +287,10 @@ IMPLEMENTATIONS: Dict[ImageFormat, list[Implementation]] = {
     ],
 }
 
+assert not (set(ImageFormat) - set(IMPLEMENTATIONS)), (
+    "IMPLEMENTATIONS missing some ImageFormats"
+)
+
 
 # TODO: Verify it works on macOS and Windows vv
 def get_system_info() -> Dict[str, Any]:
@@ -523,13 +527,6 @@ def get_dataset_files(dataset_name: DatasetId) -> list[str]:
 def run_benchmarks(args: BenchmarkArgs):
     """Execute benchmarks using hyperfine."""
     formats = args.formats or list(IMPLEMENTATIONS.keys())
-
-    # Validate formats
-    for fmt in formats:
-        if fmt not in IMPLEMENTATIONS:
-            print(f"Error: Unknown format '{fmt}'")
-            print(f"Available formats: {', '.join(IMPLEMENTATIONS.keys())}")
-            sys.exit(1)
 
     # Build projects
     build_projects(formats, args.skip_build)
