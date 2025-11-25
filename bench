@@ -1001,7 +1001,7 @@ def generate_summary(result_dir: str, raw_json_path: str):
 
     # Use the module-level plotting helper to create figures
 
-    # TODO: Sort "Detailed Results" by format and then benchmark type 
+    # TODO: Sort "Detailed Results" by format and then benchmark type
     # Generate plots using the helper and export them individually
     plot_files: list[Tuple[str, str]] = []  # (bench_type, filename)
     plots = create_plots_from_parsed_results(parsed_results)
@@ -1076,7 +1076,7 @@ class BenchmarkArgs(BaseModel):
     bench_type: Annotated[
         BenchmarkType,
         tyro.conf.EnumChoicesFromValues,
-        tyro.conf.arg(name="--type"),
+        tyro.conf.arg(name="type"),
         Field(description="Benchmark type"),
     ] = BenchmarkType.BOTH
     threads: Annotated[
