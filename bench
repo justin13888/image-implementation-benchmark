@@ -6,7 +6,7 @@ Orchestrates compilation, execution, and result collection for image codec bench
 See README.md for full methodology and usage details.
 """
 
-import argparse
+from enum import Enum
 import subprocess
 import os
 import sys
@@ -14,221 +14,276 @@ import datetime
 import json
 import platform
 import csv
+from typing import Annotated, Dict, Any, Literal, Optional, Tuple
+from pydantic import BaseModel, Field
 from pathlib import Path
-from typing import Dict, List, Any, Tuple
+import tyro
+from matplotlib.figure import Figure
 
 
-DATASETS = {
-    "test": {
-        "description": "Single test file (legacy)",
-        "files": ["data/test.ppm"],  # Will be converted to appropriate format
-    },
-    "kodak": {
-        "description": "KODAK PhotoCD dataset (24 images, ~0.4MP)",
-        "files": [f"data/kodak/kodim{i:02d}.png" for i in range(1, 25)],
-    },
-    "div2k": {
-        "description": "DIV2K selected subset (20 diverse high-res images)",
-        "files": None,  # Loaded from data/div2k/selected.txt
-    },
-    "pathological": {
-        "description": "Pathological test cases (4 synthetic images)",
-        "files": [
+class ImageFormat(str, Enum):
+    JPEG = "jpeg"
+    PNG = "png"
+    WEBP = "webp"
+    AVIF = "avif"
+    JXL = "jxl"
+    NULL = "null"
+
+
+class BenchmarkType(str, Enum):
+    ENCODE = "encode"
+    DECODE = "decode"
+    BOTH = "both"
+
+
+class QualityTier(str, Enum):
+    WEB_LOW = "web-low"
+    WEB_HIGH = "web-high"
+    ARCHIVAL = "archival"
+
+
+class DatasetId(str, Enum):
+    TEST = "test"
+    KODAK = "kodak"
+    DIV2K = "div2k"
+    PATHOLOGICAL = "pathological"
+
+
+class Dataset(BaseModel):
+    description: str
+    files: list[str]
+
+
+DATASETS: Dict[str, Dataset] = {
+    "test": Dataset(
+        description="Single test file (legacy)",
+        files=["data/test.ppm"],  # Will be converted to appropriate format
+    ),
+    "kodak": Dataset(
+        description="KODAK PhotoCD dataset (24 images, ~0.4MP)",
+        files=[f"data/kodak/kodim{i:02d}.png" for i in range(1, 25)],
+    ),
+    "div2k": Dataset(
+        description="DIV2K selected subset (20 diverse high-res images)",
+        files=Path("data/div2k/selected.txt").read_text().splitlines(),
+    ),
+    "pathological": Dataset(
+        description="Pathological test cases (4 synthetic images)",
+        files=[
             "data/pathological/solid_4k.png",
             "data/pathological/noise_4k.png",
             "data/pathological/screenshot_4k.png",
             "data/pathological/alpha_gradient_4k.png",
         ],
-    },
+    ),
 }
 
-IMPLEMENTATIONS = {
-    "null": [
-        {
-            "name": "null-cpp-decode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/null/build/bench-null-decode",
-            "type": "decode",
-        },
-        {
-            "name": "null-rust-decode",
-            "lang": "rust",
-            "bin": "target/release/bench-null-decode",
-            "type": "decode",
-        },
-        # TODO: Add null encode
+
+class Implementation(BaseModel):
+    name: str
+    lang: Literal["cpp", "rust"]
+    bin: str
+    type: Literal["decode", "encode"]
+
+
+IMPLEMENTATIONS: Dict[ImageFormat, list[Implementation]] = {
+    ImageFormat.NULL: [
+        Implementation(
+            name="null-cpp-decode",
+            lang="cpp",
+            bin="implementations/cpp/null/build/bench-null-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="null-cpp-encode",
+            lang="cpp",
+            bin="implementations/cpp/null/build/bench-null-encode",
+            type="encode",
+        ),
+        Implementation(
+            name="null-rust-decode",
+            lang="rust",
+            bin="target/release/bench-null-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="null-rust-encode",
+            lang="rust",
+            bin="target/release/bench-null-encode",
+            type="encode",
+        ),
     ],
-    "jpeg": [
-        {
-            "name": "jpeg-decoder-decode",
-            "lang": "rust",
-            "bin": "target/release/bench-jpeg-decoder-decode",
-            "type": "decode",
-        },
-        {
-            "name": "zune-jpeg-decode",
-            "lang": "rust",
-            "bin": "target/release/bench-zune-jpeg-decode",
-            "type": "decode",
-        },
-        {
-            "name": "libjpeg-turbo-decode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/libjpeg-turbo/build/bench-libjpeg-turbo-decode",
-            "type": "decode",
-        },
-        {
-            "name": "libjpeg-turbo-encode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/libjpeg-turbo/build/bench-libjpeg-turbo-encode",
-            "type": "encode",
-        },
-        {
-            "name": "mozjpeg-decode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/mozjpeg/build/bench-mozjpeg-decode",
-            "type": "decode",
-        },
-        {
-            "name": "mozjpeg-encode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/mozjpeg/build/bench-mozjpeg-encode",
-            "type": "encode",
-        },
+    ImageFormat.JPEG: [
+        Implementation(
+            name="jpeg-decoder-decode",
+            lang="rust",
+            bin="target/release/bench-jpeg-decoder-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="zune-jpeg-decode",
+            lang="rust",
+            bin="target/release/bench-zune-jpeg-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="libjpeg-turbo-decode",
+            lang="cpp",
+            bin="implementations/cpp/libjpeg-turbo/build/bench-libjpeg-turbo-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="libjpeg-turbo-encode",
+            lang="cpp",
+            bin="implementations/cpp/libjpeg-turbo/build/bench-libjpeg-turbo-encode",
+            type="encode",
+        ),
+        Implementation(
+            name="mozjpeg-decode",
+            lang="cpp",
+            bin="implementations/cpp/mozjpeg/build/bench-mozjpeg-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="mozjpeg-encode",
+            lang="cpp",
+            bin="implementations/cpp/mozjpeg/build/bench-mozjpeg-encode",
+            type="encode",
+        ),
     ],
-    "png": [
-        {
-            "name": "image-png-decode",
-            "lang": "rust",
-            "bin": "target/release/bench-image-png-decode",
-            "type": "decode",
-        },
-        {
-            "name": "image-png-encode",
-            "lang": "rust",
-            "bin": "target/release/bench-image-png-encode",
-            "type": "encode",
-        },
-        {
-            "name": "zune-png-decode",
-            "lang": "rust",
-            "bin": "target/release/bench-zune-png-decode",
-            "type": "decode",
-        },
-        {
-            "name": "zune-png-encode",
-            "lang": "rust",
-            "bin": "target/release/bench-zune-png-encode",
-            "type": "encode",
-        },
-        {
-            "name": "libpng-decode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/libpng/build/bench-libpng-decode",
-            "type": "decode",
-        },
-        {
-            "name": "libpng-encode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/libpng/build/bench-libpng-encode",
-            "type": "encode",
-        },
-        {
-            "name": "spng-decode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/spng/build/bench-spng-decode",
-            "type": "decode",
-        },
-        {
-            "name": "spng-encode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/spng/build/bench-spng-encode",
-            "type": "encode",
-        },
+    ImageFormat.PNG: [
+        Implementation(
+            name="image-png-decode",
+            lang="rust",
+            bin="target/release/bench-image-png-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="image-png-encode",
+            lang="rust",
+            bin="target/release/bench-image-png-encode",
+            type="encode",
+        ),
+        Implementation(
+            name="zune-png-decode",
+            lang="rust",
+            bin="target/release/bench-zune-png-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="zune-png-encode",
+            lang="rust",
+            bin="target/release/bench-zune-png-encode",
+            type="encode",
+        ),
+        Implementation(
+            name="libpng-decode",
+            lang="cpp",
+            bin="implementations/cpp/libpng/build/bench-libpng-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="libpng-encode",
+            lang="cpp",
+            bin="implementations/cpp/libpng/build/bench-libpng-encode",
+            type="encode",
+        ),
+        Implementation(
+            name="spng-decode",
+            lang="cpp",
+            bin="implementations/cpp/spng/build/bench-spng-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="spng-encode",
+            lang="cpp",
+            bin="implementations/cpp/spng/build/bench-spng-encode",
+            type="encode",
+        ),
     ],
-    "webp": [
-        {
-            "name": "image-webp-decode",
-            "lang": "rust",
-            "bin": "target/release/bench-image-webp-decode",
-            "type": "decode",
-        },
-        {
-            "name": "image-webp-encode",
-            "lang": "rust",
-            "bin": "target/release/bench-image-webp-encode",
-            "type": "encode",
-        },
-        {
-            "name": "libwebp-decode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/libwebp/build/bench-libwebp-decode",
-            "type": "decode",
-        },
-        {
-            "name": "libwebp-encode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/libwebp/build/bench-libwebp-encode",
-            "type": "encode",
-        },
+    ImageFormat.WEBP: [
+        Implementation(
+            name="image-webp-decode",
+            lang="rust",
+            bin="target/release/bench-image-webp-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="image-webp-encode",
+            lang="rust",
+            bin="target/release/bench-image-webp-encode",
+            type="encode",
+        ),
+        Implementation(
+            name="libwebp-decode",
+            lang="cpp",
+            bin="implementations/cpp/libwebp/build/bench-libwebp-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="libwebp-encode",
+            lang="cpp",
+            bin="implementations/cpp/libwebp/build/bench-libwebp-encode",
+            type="encode",
+        ),
     ],
-    "avif": [
-        {
-            "name": "rav1e-encode",
-            "lang": "rust",
-            "bin": "target/release/bench-rav1e-encode",
-            "type": "encode",
-        },
-        {
-            "name": "rav1d-decode",
-            "lang": "rust",
-            "bin": "target/release/bench-rav1d-decode",
-            "type": "decode",
-        },
-        {
-            "name": "libavif-decode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/libavif/build/bench-libavif-decode",
-            "type": "decode",
-        },
-        {
-            "name": "libavif-encode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/libavif/build/bench-libavif-encode",
-            "type": "encode",
-        },
-        {
-            "name": "dav1d-decode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/dav1d/build/bench-dav1d-decode",
-            "type": "decode",
-        },
+    ImageFormat.AVIF: [
+        Implementation(
+            name="rav1e-encode",
+            lang="rust",
+            bin="target/release/bench-rav1e-encode",
+            type="encode",
+        ),
+        Implementation(
+            name="rav1d-decode",
+            lang="rust",
+            bin="target/release/bench-rav1d-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="libavif-decode",
+            lang="cpp",
+            bin="implementations/cpp/libavif/build/bench-libavif-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="libavif-encode",
+            lang="cpp",
+            bin="implementations/cpp/libavif/build/bench-libavif-encode",
+            type="encode",
+        ),
+        Implementation(
+            name="dav1d-decode",
+            lang="cpp",
+            bin="implementations/cpp/dav1d/build/bench-dav1d-decode",
+            type="decode",
+        ),
     ],
-    "jxl": [
-        {
-            "name": "jxl-oxide-decode",
-            "lang": "rust",
-            "bin": "target/release/bench-jxl-oxide-decode",
-            "type": "decode",
-        },
-        {
-            "name": "zune-jpegxl-encode",
-            "lang": "rust",
-            "bin": "target/release/bench-zune-jpegxl-encode",
-            "type": "encode",
-        },
-        {
-            "name": "libjxl-decode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/libjxl/build/bench-libjxl-decode",
-            "type": "decode",
-        },
-        {
-            "name": "libjxl-encode",
-            "lang": "cpp",
-            "bin": "implementations/cpp/libjxl/build/bench-libjxl-encode",
-            "type": "encode",
-        },
+    ImageFormat.JXL: [
+        Implementation(
+            name="jxl-oxide-decode",
+            lang="rust",
+            bin="target/release/bench-jxl-oxide-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="zune-jpegxl-encode",
+            lang="rust",
+            bin="target/release/bench-zune-jpegxl-encode",
+            type="encode",
+        ),
+        Implementation(
+            name="libjxl-decode",
+            lang="cpp",
+            bin="implementations/cpp/libjxl/build/bench-libjxl-decode",
+            type="decode",
+        ),
+        Implementation(
+            name="libjxl-encode",
+            lang="cpp",
+            bin="implementations/cpp/libjxl/build/bench-libjxl-encode",
+            type="encode",
+        ),
     ],
 }
 
@@ -339,7 +394,7 @@ def get_library_versions() -> Dict[str, str]:
     return libraries
 
 
-def build_projects(formats: List[str], skip_build: bool):
+def build_projects(formats: list[ImageFormat], skip_build: bool):
     """Build Rust and C++ projects."""
     if skip_build:
         print("Skipping build step (--skip-build)")
@@ -368,14 +423,14 @@ def build_projects(formats: List[str], skip_build: bool):
             continue
 
         for impl in IMPLEMENTATIONS[fmt]:
-            if impl["lang"] != "cpp":
+            if impl.lang != "cpp":
                 continue
 
-            bin_path = impl["bin"]
+            bin_path = impl.bin
             build_dir = os.path.dirname(bin_path)
             src_dir = os.path.dirname(build_dir)
 
-            print(f"  Building {impl['name']}...")
+            print(f"  Building {impl.name}...")
             os.makedirs(build_dir, exist_ok=True)
 
             try:
@@ -406,15 +461,15 @@ def build_projects(formats: List[str], skip_build: bool):
 
                 # Verify binary was created
                 if not os.path.exists(bin_path):
-                    print(f"    ✗ {impl['name']} - binary not found at {bin_path}")
-                    print(f"\n✗ Build failed for {impl['name']}")
+                    print(f"    ✗ {impl.name} - binary not found at {bin_path}")
+                    print(f"\n✗ Build failed for {impl.name}")
                     sys.exit(1)
                 else:
-                    print(f"    ✓ {impl['name']}")
+                    print(f"    ✓ {impl.name}")
 
             except subprocess.CalledProcessError as e:
-                print(f"    ✗ {impl['name']} failed")
-                print(f"\n    Error output:")
+                print(f"    ✗ {impl.name} failed")
+                print("\n    Error output:")
                 if e.stderr:
                     for line in e.stderr.strip().split("\n")[
                         :10
@@ -423,13 +478,13 @@ def build_projects(formats: List[str], skip_build: bool):
                 if e.stdout:
                     for line in e.stdout.strip().split("\n")[:10]:
                         print(f"      {line}")
-                print(f"\n✗ Build failed for {impl['name']}")
+                print(f"\n✗ Build failed for {impl.name}")
                 sys.exit(1)
 
     print("\n✓ Build phase complete\n")
 
 
-def get_dataset_files(dataset_name: str) -> List[str]:
+def get_dataset_files(dataset_name: str) -> list[str]:
     """Get list of files for a given dataset."""
     if dataset_name not in DATASETS:
         raise ValueError(f"Unknown dataset: {dataset_name}")
@@ -448,7 +503,7 @@ def get_dataset_files(dataset_name: str) -> List[str]:
 
         return [f"data/div2k/DIV2K_train_HR/{name}" for name in filenames]
 
-    files = dataset["files"]
+    files = dataset.files
 
     # Validate files exist
     missing = [f for f in files if not os.path.exists(f)]
@@ -464,32 +519,9 @@ def get_dataset_files(dataset_name: str) -> List[str]:
     return files
 
 
-def get_input_file(fmt: str, bench_type: str, quality: str) -> str:
-    """Determine input file based on format and benchmark type (legacy single-file mode)."""
-    if bench_type == "encode":
-        # For encoding, use raw PPM
-        return "data/test.ppm"
-    else:
-        # For decoding, use pre-encoded files with quality tier
-        format_map = {
-            "jpeg": "jpg",
-            "png": "png",
-            "webp": "webp",
-            "avif": "avif",
-            "jxl": "jxl",
-        }
-        ext = format_map.get(fmt, "jpg")
-
-        # PNG is lossless, so no quality tier
-        if fmt == "png":
-            return f"data/test.{ext}"
-
-        return f"data/test_{quality}.{ext}"
-
-
-def run_benchmarks(args):
+def run_benchmarks(args: BenchmarkArgs):
     """Execute benchmarks using hyperfine."""
-    formats = args.formats.split(",") if args.formats else list(IMPLEMENTATIONS.keys())
+    formats = args.formats or list(IMPLEMENTATIONS.keys())
 
     # Validate formats
     for fmt in formats:
@@ -519,7 +551,7 @@ def run_benchmarks(args):
         "allocator": "mimalloc 2.1.2",
         "benchmark_config": {
             "formats": formats,
-            "type": args.type,
+            "type": args.bench_type,
             "dataset": args.dataset,
             "threads": args.threads,
             "iterations": args.iterations,
@@ -544,12 +576,12 @@ def run_benchmarks(args):
     for fmt in formats:
         for impl in IMPLEMENTATIONS[fmt]:
             # Filter by type
-            if args.type == "decode" and impl["type"] != "decode":
+            if args.bench_type == "decode" and impl.type != "decode":
                 continue
-            if args.type == "encode" and impl["type"] != "encode":
+            if args.bench_type == "encode" and impl.type != "encode":
                 continue
 
-            binary = impl["bin"]
+            binary = impl.bin
             if not os.path.exists(binary):
                 print(f"Warning: Binary not found, skipping: {binary}")
                 continue
@@ -559,7 +591,7 @@ def run_benchmarks(args):
 
             for source_file in dataset_files:
                 # Determine input file path
-                if impl["type"] == "encode":
+                if impl.type == "encode":
                     # For encoding, use the source file directly
                     # Note: Some C++ implementations might expect PPM.
                     # If source is PNG and impl needs PPM, we might need on-the-fly conversion.
@@ -632,9 +664,7 @@ def run_benchmarks(args):
 
                 # Create descriptive name
                 input_name = os.path.basename(input_file)
-                command_names.append(
-                    f"{impl['name']} ({fmt}, {impl['type']}, {input_name})"
-                )
+                command_names.append(f"{impl.name} ({fmt}, {impl.type}, {input_name})")
 
     if not commands:
         print("\nError: No benchmarks to run!")
@@ -649,15 +679,27 @@ def run_benchmarks(args):
     print()
 
     json_output = f"{result_dir}/raw.json"
-    hyperfine_cmd = [
-        "hyperfine",
-        "--warmup",
-        "3",
-        "--min-runs",
-        "10",
-        "--export-json",
-        json_output,
-    ]
+    if not args.quick:
+        hyperfine_cmd = [
+            "hyperfine",
+            "--warmup",
+            "3",
+            "--min-runs",
+            "10",
+            "--export-json",
+            json_output,
+        ]
+    else:
+        hyperfine_cmd = [
+            "hyperfine",
+            "--warmup",
+            "0",
+            "--min-runs",
+            "1",
+            "--max-runs",
+            "1--export-json",
+            json_output,
+        ]
 
     # Add command names for better output
     for name in command_names:
@@ -686,15 +728,15 @@ def run_benchmarks(args):
     print("RESULTS")
     print("=" * 70)
     print(f"\nResults saved to: {result_dir}/")
-    print(f"  - manifest.json  : Reproducibility metadata")
-    print(f"  - raw.json       : Full hyperfine output")
-    print(f"  - summary.md     : Human-readable tables")
+    print("  - manifest.json  : Reproducibility metadata")
+    print("  - raw.json       : Full hyperfine output")
+    print("  - summary.md     : Human-readable tables")
     if args.measure_memory:
-        print(f"  - memory.csv     : Peak memory usage")
+        print("  - memory.csv     : Peak memory usage")
     print()
 
 
-def measure_memory(result_dir: str, commands: List[str], command_names: List[str]):
+def measure_memory(result_dir: str, commands: list[str], command_names: list[str]):
     """Measure peak memory usage using /usr/bin/time."""
     import re
 
@@ -801,6 +843,61 @@ def measure_memory(result_dir: str, commands: List[str], command_names: List[str
     print(f"\n✓ Memory data written to {csv_path}")
 
 
+def create_plots_from_parsed_results(
+    parsed: Dict[str, Dict[str, list[Dict[str, Any]]]],
+) -> list[Tuple[str, "Figure"]]:
+    """Create matplotlib figures from parsed results.
+
+    Returns a list of tuples (filename, Figure).
+    The caller is responsible for saving and closing the figures.
+    """
+
+    # Import locally to avoid heavy imports at module import-time
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    plots: list[Tuple[str, "Figure"]] = []
+
+    for bench_type, codecs in parsed.items():
+        if not codecs:
+            continue
+
+        sorted_codecs = sorted(codecs.keys())
+
+        for fmt in sorted_codecs:
+            results = codecs[fmt]
+            # Sort by mean time
+            results.sort(key=lambda x: x["mean"])
+
+            names = [r["name"] for r in results]
+            means = [r["mean"] for r in results]
+            stddevs = [r["stddev"] for r in results]
+
+            y_pos = np.arange(len(names))
+
+            fig, ax = plt.subplots(
+                figsize=(10, 0.5 * max(4, len(names))), constrained_layout=True
+            )
+            fig.suptitle(
+                f"{bench_type.capitalize()} - {fmt.upper()} Benchmarks", fontsize=14
+            )
+            ax.barh(y_pos, means, xerr=stddevs, align="center", alpha=0.8, capsize=5)
+            ax.set_yticks(y_pos)
+            ax.set_yticklabels(names)
+            ax.invert_yaxis()  # labels read top-to-bottom
+            ax.set_xlabel("Time (ms)")
+            ax.set_title(f"{fmt.upper()}")
+
+            # Add value labels
+            for j, v in enumerate(means):
+                ax.text(v, j, f" {v:.2f} ms", va="center")
+
+            filename = f"{bench_type}_{fmt}_results.png"
+            plots.append((filename, fig))
+
+    return plots
+
+
 def generate_summary(result_dir: str, raw_json_path: str):
     """Generate summary.md from hyperfine results."""
     try:
@@ -810,7 +907,52 @@ def generate_summary(result_dir: str, raw_json_path: str):
         print(f"Warning: Could not generate summary: {e}")
         return
 
-    import scipy.stats as stats
+    # Imports used for other helper code are handled in the helper
+
+    # Parse results
+    parsed_results = {"encode": {}, "decode": {}}
+
+    for result in data.get("results", []):
+        name = result.get("command", "unknown")
+        # Format: "impl_name (fmt, type, input)"
+        try:
+            # Extract info from name
+            if "(" in name and ")" in name:
+                base_name = name.split(" (")[0]
+                meta = name.split(" (")[1].rstrip(")").split(", ")
+                if len(meta) >= 2:
+                    fmt = meta[0]
+                    bench_type = meta[1]
+
+                    if bench_type in parsed_results:
+                        if fmt not in parsed_results[bench_type]:
+                            parsed_results[bench_type][fmt] = []
+
+                        parsed_results[bench_type][fmt].append(
+                            {
+                                "name": base_name,
+                                "mean": result.get("mean", 0) * 1000,  # ms
+                                "stddev": result.get("stddev", 0) * 1000,  # ms
+                            }
+                        )
+        except Exception:
+            continue
+
+    # Use the module-level plotting helper to create figures
+
+    # Generate plots using the helper and export them individually
+    plot_files: list[Tuple[str, str]] = []  # (bench_type, filename)
+    plots = create_plots_from_parsed_results(parsed_results)
+
+    import matplotlib.pyplot as plt
+
+    for filename, fig in plots:
+        filepath = os.path.join(result_dir, filename)
+        fig.savefig(filepath)
+        plt.close(fig)
+        # bench_type is the prefix before the first underscore
+        bench_type = filename.split("_")[0] if "_" in filename else "summary"
+        plot_files.append((bench_type, filename))
 
     summary_path = f"{result_dir}/summary.md"
 
@@ -834,12 +976,10 @@ def generate_summary(result_dir: str, raw_json_path: str):
             max_time = result.get("max", 0) * 1000
 
             # Calculate 95% confidence interval
-            # Hyperfine provides times array, but we'll use mean ± 1.96*stderr
-            # stderr = stddev / sqrt(n)
             times = result.get("times", [])
-            n = len(times) if times else 10  # Default to 10 if not available
+            n = len(times) if times else 10
             stderr = stddev / (n**0.5)
-            ci_margin = 1.96 * stderr  # 95% CI
+            ci_margin = 1.96 * stderr
             ci_lower = mean - ci_margin
             ci_upper = mean + ci_margin
             ci_str = f"{ci_lower:.2f}–{ci_upper:.2f}"
@@ -850,125 +990,90 @@ def generate_summary(result_dir: str, raw_json_path: str):
 
         f.write("\n## Detailed Results\n\n")
 
-        for result in data.get("results", []):
-            name = result.get("command", "unknown")
-            mean = result.get("mean", 0) * 1000
-            median = result.get("median", 0) * 1000
-            stddev = result.get("stddev", 0) * 1000
-            min_time = result.get("min", 0) * 1000
-            max_time = result.get("max", 0) * 1000
-
-            # Calculate 95% CI
-            times = result.get("times", [])
-            n = len(times) if times else 10
-            stderr = stddev / (n**0.5)
-            ci_margin = 1.96 * stderr
-            ci_lower = mean - ci_margin
-            ci_upper = mean + ci_margin
-
-            f.write(f"### {name}\n\n")
-            f.write(f"- **Mean**: {mean:.2f} ms\n")
-            f.write(f"- **Median**: {median:.2f} ms\n")
-            f.write(f"- **Std Dev**: {stddev:.2f} ms\n")
-            f.write(f"- **95% CI**: {ci_lower:.2f} ms – {ci_upper:.2f} ms\n")
-            f.write(f"- **Min**: {min_time:.2f} ms\n")
-            f.write(f"- **Max**: {max_time:.2f} ms\n")
-            f.write("\n")
+        if plot_files:
+            for bench_type, filename in plot_files:
+                f.write(f"### {bench_type.capitalize()}\n\n")
+                f.write(f"![{bench_type} results]({filename})\n\n")
+        else:
+            f.write("No plots generated.\n")
 
     print(f"\n✓ Summary written to {summary_path}")
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Run image codec benchmarks",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  ./bench                           # Run all benchmarks with defaults (test dataset)
-  ./bench --dataset kodak           # Benchmark on KODAK dataset (24 images)
-  ./bench --dataset div2k           # Benchmark on DIV2K selected (20 high-res images)
-  ./bench --dataset pathological    # Benchmark on synthetic stress tests
-  ./bench --formats jpeg,avif       # Only test JPEG and AVIF
-  ./bench --type decode             # Only decode benchmarks
-  ./bench --threads 0               # Use all available cores
-  ./bench --discard-output          # Pure compute (no I/O)
-  ./bench --verify                  # Include correctness verification
-  ./bench --measure-memory          # Track peak memory usage
-        """,
-    )
+class BenchmarkArgs(BaseModel):
+    formats: Annotated[
+        Optional[list[ImageFormat]],
+        tyro.conf.EnumChoicesFromValues,
+        Field(description="List of formats to test."),
+    ] = None
+    dataset: Annotated[
+        DatasetId,
+        tyro.conf.EnumChoicesFromValues,
+        Field(description="Dataset to benchmark"),
+    ] = DatasetId.TEST
+    bench_type: Annotated[
+        BenchmarkType,
+        tyro.conf.EnumChoicesFromValues,
+        tyro.conf.arg(name="--type"),
+        Field(description="Benchmark type"),
+    ] = BenchmarkType.BOTH
+    threads: Annotated[
+        int, Field(ge=0, description="Number of threads (0 = all cores)")
+    ] = 1
+    iterations: Annotated[int, Field(description="Iterations per benchmark")] = 10
+    warmup: Annotated[int, Field(description="Warmup iterations")] = 2
+    quality: Annotated[
+        QualityTier, tyro.conf.EnumChoicesFromValues, Field(description="Quality tier")
+    ] = QualityTier.WEB_LOW
 
-    parser.add_argument(
-        "--formats",
-        help="Comma-separated list of formats to benchmark (jpeg,png,webp,avif,jxl)",
-    )
-    parser.add_argument(
-        "--dataset",
-        choices=["test", "kodak", "div2k", "pathological"],
-        default="test",
-        help="Dataset to benchmark (default: test)",
-    )
-    parser.add_argument(
-        "--type",
-        choices=["encode", "decode", "both"],
-        default="decode",
-        help="Benchmark type (default: decode)",
-    )
-    parser.add_argument(
-        "--threads",
-        type=int,
-        default=1,
-        help="Number of threads (0 = all cores, default: 1)",
-    )
-    parser.add_argument(
-        "--iterations",
-        type=int,
-        default=10,
-        help="Number of iterations per benchmark (default: 10)",
-    )
-    parser.add_argument(
-        "--warmup", type=int, default=2, help="Number of warmup iterations (default: 2)"
-    )
-    parser.add_argument(
-        "--quality",
-        choices=["web-low", "web-high", "archival"],
-        default="web-low",
-        help="Quality tier to test (default: web-low)",
-    )
-    parser.add_argument(
-        "--discard-output",
-        action="store_true",
-        help="Discard output (compute-only, no I/O)",
-    )
-    parser.add_argument(
-        "--verify", action="store_true", help="Enable correctness verification"
-    )
-    parser.add_argument(
-        "--preallocate",
-        action="store_true",
-        help="Preallocate buffers (isolate from allocator variance)",
-    )
-    parser.add_argument(
-        "--measure-memory",
-        action="store_true",
-        help="Measure peak memory usage (requires /usr/bin/time)",
-    )
-    parser.add_argument(
-        "--skip-build", action="store_true", help="Skip compilation step"
-    )
-    parser.add_argument(
-        "--pin-cores",
-        action="store_true",
-        help="Pin benchmarks to specific CPU cores using taskset (Linux only)",
-    )
+    # Booleans automatically become flags: --discard-output / --no-discard-output
+    discard_output: Annotated[
+        bool,
+        tyro.conf.FlagCreatePairsOff,
+        Field(description="Discard output (compute-only)"),
+    ] = False
+    verify: Annotated[
+        bool,
+        tyro.conf.FlagCreatePairsOff,
+        Field(description="Enable correctness verification"),
+    ] = False
+    preallocate: Annotated[
+        bool, tyro.conf.FlagCreatePairsOff, Field(description="Preallocate buffers")
+    ] = False
+    measure_memory: Annotated[
+        bool,
+        tyro.conf.FlagCreatePairsOff,
+        Field(description="Measure peak memory usage"),
+    ] = False
+    skip_build: Annotated[
+        bool, tyro.conf.FlagCreatePairsOff, Field(description="Skip compilation step")
+    ] = False
+    pin_cores: Annotated[
+        bool,
+        tyro.conf.FlagCreatePairsOff,
+        Field(description="Pin benchmarks to specific CPU cores"),
+    ] = False
+    quick: Annotated[
+        bool,
+        tyro.conf.FlagCreatePairsOff,
+        Field(description="Quick mode (single iteration) (only for testing)"),
+    ] = False
 
-    args = parser.parse_args()
 
+# **Examples:**
+
+# * `./bench` (Run all defaults)
+# * `./bench --dataset kodak` (Benchmark KODAK)
+# * `./bench --formats jpeg,avif` (Only test JPEG and AVIF)
+# * `./bench --type decode` (Only decode benchmarks)
+# * `./bench --threads 0` (Use all cores)
+# * `./bench --discard-output` (Pure compute, no I/O)
+
+
+if __name__ == "__main__":
     try:
+        args = tyro.cli(BenchmarkArgs)
         run_benchmarks(args)
     except KeyboardInterrupt:
         print("\n\nBenchmark interrupted by user")
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
