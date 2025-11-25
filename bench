@@ -759,19 +759,7 @@ def run_benchmarks(args: BenchmarkArgs):
         "compiler": get_compiler_versions(),
         "libraries": get_library_versions(),
         "allocator": "mimalloc 2.1.2",
-        "benchmark_config": {
-            "formats": formats,
-            "mode": args.mode,
-            "dataset": args.dataset,
-            "threads": args.threads,
-            "iterations": args.iterations,
-            "warmup": args.warmup,
-            "quality": args.quality,
-            "discard_output": args.discard_output,
-            "verify": args.verify,
-            "preallocate": args.preallocate,
-            "pin_cores": args.pin_cores,
-        },
+        "benchmark_config": args.model_dump(),
     }
 
     with open(f"{result_dir}/manifest.json", "w") as f:
