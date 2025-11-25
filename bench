@@ -13,7 +13,7 @@ import sys
 import datetime
 import json
 import platform
-from typing import Annotated, Dict, Any, Literal, Optional, Tuple, Union
+from typing import Annotated, Dict, Any, Literal, Optional, Set, Tuple, Union
 from pydantic import BaseModel, Field
 from pathlib import Path
 import tyro
@@ -556,13 +556,15 @@ def build_projects(formats: list[ImageFormat], skip_build: bool):
     print("\n✓ Build phase complete\n")
 
 
+DATASET_FILES_CHECKED: Set[str] = set()
+
+
 def get_dataset_files(dataset_name: DatasetId) -> list[str]:
     """
     Get list of files for a given dataset.
 
     Guarantees that all files exist, otherwise exits with error message.
     """
-    # TODO: Cache the result of this
     if dataset_name not in DATASETS:
         raise ValueError(f"Unknown dataset: {dataset_name}")
 
@@ -570,15 +572,18 @@ def get_dataset_files(dataset_name: DatasetId) -> list[str]:
     files = dataset.files
 
     # Validate files exist
-    missing = [f for f in files if not os.path.exists(f)]
-    if missing:
-        print(f"Error: Dataset '{dataset_name}' files not found:")
-        for f in missing[:5]:  # Show first 5
-            print(f"  - {f}")
-        if len(missing) > 5:
-            print(f"  ... and {len(missing) - 5} more")
-        print("\nRun setup_data.sh to download datasets.")
-        sys.exit(1)
+    if dataset_name not in DATASET_FILES_CHECKED:
+        missing = [f for f in files if not os.path.exists(f)]
+        if missing:
+            print(f"Error: Dataset '{dataset_name}' files not found:")
+            for f in missing[:5]:  # Show first 5
+                print(f"  - {f}")
+            if len(missing) > 5:
+                print(f"  ... and {len(missing) - 5} more")
+            print("\nRun setup_data.sh to download datasets.")
+            sys.exit(1)
+
+        DATASET_FILES_CHECKED.add(dataset_name)
 
     return files
 
