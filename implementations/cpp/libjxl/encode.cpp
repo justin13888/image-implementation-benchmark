@@ -4,6 +4,7 @@
 #include <jxl/thread_parallel_runner_cxx.h>
 
 #include <fstream>
+#include <iostream>  // Added for debug logging if needed
 #include <stdexcept>
 #include <vector>
 
@@ -31,38 +32,63 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
     }
 
     size_t pos = 3;
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-    while (pos < buffer.size() && data[pos] == '#') {
-      while (pos < buffer.size() && data[pos] != '\n') pos++;
-      pos++;
-    }
+    auto skip_whitespace = [&]() {
+      while (pos < buffer.size() && (data[pos] == ' ' || data[pos] == '\n' ||
+                                     data[pos] == '\r' || data[pos] == '\t')) {
+        pos++;
+      }
+    };
 
+    auto skip_comments = [&]() {
+      while (pos < buffer.size() && data[pos] == '#') {
+        while (pos < buffer.size() && data[pos] != '\n') pos++;
+        pos++;
+      }
+    };
+
+    skip_whitespace();
+    skip_comments();
+
+    // Read Width
     width = 0;
     while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
       width = width * 10 + (data[pos] - '0');
       pos++;
     }
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
+    skip_whitespace();
+    skip_comments();  // Comments can appear between width and height
 
+    // Read Height
     height = 0;
     while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
       height = height * 10 + (data[pos] - '0');
       pos++;
     }
+    skip_whitespace();
+    skip_comments();
 
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
+    // Read MaxVal
+    max_val = 0;
+    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
+      max_val = max_val * 10 + (data[pos] - '0');
       pos++;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') pos++;
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
+    }
 
-    input_data.assign(data + pos, data + buffer.size());
+    // P6 spec: single whitespace char follows maxval
+    if (pos < buffer.size() && isspace(data[pos])) {
+      pos++;
+    }
+
+    // Calculate expected raw size to avoid buffer mismatch errors
+    int bytes_per_channel = (max_val > 255) ? 2 : 1;
+    size_t expected_bytes = (size_t)width * height * 3 * bytes_per_channel;
+
+    if (pos + expected_bytes > buffer.size()) {
+      throw std::runtime_error("Incomplete P6 file");
+    }
+
+    // Assign EXACTLY the needed bytes.
+    input_data.assign(data + pos, data + pos + expected_bytes);
 
     // Configure quality settings per README spec
     if (args.quality == "web-low") {
@@ -94,10 +120,29 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
     }
 
     JxlPixelFormat pixel_format = {3, JXL_TYPE_UINT8, JXL_LITTLE_ENDIAN, 0};
+
+    if (max_val > 255) {
+      pixel_format.data_type = JXL_TYPE_UINT16;
+      // P6 standard defines multi-byte samples as Big Endian (Most Significant
+      // Byte first)
+      pixel_format.endianness = JXL_BIG_ENDIAN;
+    } else {
+      pixel_format.data_type = JXL_TYPE_UINT8;
+      pixel_format.endianness =
+          JXL_LITTLE_ENDIAN;  // Endianness doesn't matter for 1 byte
+    }
+
     JxlBasicInfo basic_info;
     JxlEncoderInitBasicInfo(&basic_info);
     basic_info.xsize = width;
     basic_info.ysize = height;
+    // IMPORTANT: For 16-bit input, we usually want to keep the bit depth in
+    // basic info
+    if (max_val > 255) {
+      basic_info.bits_per_sample = 16;
+    } else {
+      basic_info.bits_per_sample = 8;
+    }
     basic_info.uses_original_profile = JXL_TRUE;
 
     if (JXL_ENC_SUCCESS != JxlEncoderSetBasicInfo(enc.get(), &basic_info)) {
@@ -165,6 +210,7 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
   std::vector<uint8_t> input_data;
   int width;
   int height;
+  int max_val;  // Added to store bit-depth info
   float distance;
   int effort;
   bool lossless;

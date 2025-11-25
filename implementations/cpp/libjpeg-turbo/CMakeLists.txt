@@ -4,6 +4,7 @@ project(bench-libjpeg-turbo)
 set(CMAKE_CXX_STANDARD 17)
 
 # Aggressive optimization flags per README
+set(CMAKE_C_FLAGS_RELEASE "-O3 -flto -march=native -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto -fstrict-aliasing -fomit-frame-pointer -march=native -DNDEBUG")
 set(CMAKE_BUILD_TYPE Release)
 
@@ -12,6 +13,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 include_directories(../../../harness/cpp)
+
+include(FetchContent)
 
 find_package(JPEG REQUIRED)
 find_package(ZLIB REQUIRED)
