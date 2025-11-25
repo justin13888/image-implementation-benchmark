@@ -6,6 +6,7 @@ Orchestrates compilation, execution, and result collection for image codec bench
 See README.md for full methodology and usage details.
 """
 
+from collections import defaultdict
 from enum import Enum
 import subprocess
 import os
@@ -729,9 +730,7 @@ def build_bench_list(
             # input_path = "{input}"  # Note: This isn't an f-string
             input_path = input_file
             output_path = "/dev/null"
-            bench = build_bench_cmd(
-                impl, format, input_path, output_path, args
-            )  # TODO: pass appropriate
+            bench = build_bench_cmd(impl, format, input_path, output_path, args)
             benches.append(bench)
 
     return benches
@@ -792,7 +791,6 @@ def run_benchmarks(args: BenchmarkArgs):
                 benches += build_bench_list(BenchmarkType.DECODE, format)
             case _:
                 raise ValueError(f"Unknown benchmark type: {args.mode}")
-    # TODO: Split into encode and decode benches later
 
     if not benches:
         print("\nError: No benchmarks to run!")
@@ -976,13 +974,25 @@ def run_benchmarks(args: BenchmarkArgs):
 
 #     print(f"\n✓ Memory data written to {csv_path}")
 
+BenchmarkKey = tuple[ImageFormat, BenchmarkType]
+
+
+def filename_from_key(key: BenchmarkKey) -> str:
+    """
+    Generate a filename-safe string from a benchmark key.
+
+    Does not include file extension.
+    """
+    format, bench_type = key
+    return f"{format.value}_{bench_type.value}_results"
+
 
 def create_plots_from_parsed_results(
     parsed: Dict[str, Dict[str, list[Dict[str, Any]]]],
-) -> list[Tuple[str, "Figure"]]:
+) -> list[Tuple[BenchmarkKey, "Figure"]]:
     """Create matplotlib figures from parsed results.
 
-    Returns a list of tuples (filename, Figure).
+    Returns a list of tuples (key, Figure).
     The caller is responsible for saving and closing the figures.
     """
 
@@ -990,7 +1000,7 @@ def create_plots_from_parsed_results(
     import matplotlib.pyplot as plt
     import numpy as np
 
-    plots: list[Tuple[str, "Figure"]] = []
+    plots: list[Tuple[BenchmarkKey, "Figure"]] = []
 
     for bench_type, codecs in parsed.items():
         if not codecs:
@@ -1026,8 +1036,8 @@ def create_plots_from_parsed_results(
             for j, v in enumerate(means):
                 ax.text(v, j, f" {v:.2f} ms", va="center")
 
-            filename = f"{bench_type}_{fmt}_results.png"
-            plots.append((filename, fig))
+            key = (ImageFormat(fmt), BenchmarkType(bench_type.lower()))
+            plots.append((key, fig))
 
     return plots
 
@@ -1076,18 +1086,21 @@ def generate_summary(result_dir: str, raw_json_path: str):
 
     # TODO: Sort "Detailed Results" by format and then benchmark type
     # Generate plots using the helper and export them individually
-    plot_files: list[Tuple[str, str]] = []  # (bench_type, filename)
+    plot_files: defaultdict[str, list[Tuple[str, str]]] = defaultdict(
+        list
+    )  # defaultdict[format, [(bench_type, filename)]]
     plots = create_plots_from_parsed_results(parsed_results)
 
     import matplotlib.pyplot as plt
 
-    for filename, fig in plots:
+    for key, fig in plots:
+        format, bench_type = key
+        filename = f"{filename_from_key(key)}.png"
         filepath = os.path.join(result_dir, filename)
         fig.savefig(filepath)
         plt.close(fig)
-        # bench_type is the prefix before the first underscore
-        bench_type = filename.split("_")[0] if "_" in filename else "summary"
-        plot_files.append((bench_type, filename))
+
+        plot_files[format].append((bench_type, filename))
 
     summary_path = f"{result_dir}/summary.md"
 
@@ -1125,10 +1138,12 @@ def generate_summary(result_dir: str, raw_json_path: str):
 
         f.write("\n## Detailed Results\n\n")
 
-        if plot_files:
-            for bench_type, filename in plot_files:
-                f.write(f"### {bench_type.capitalize()}\n\n")
-                f.write(f"![{bench_type} results]({filename})\n\n")
+        if len(plot_files) > 0:
+            for format, plots_list in plot_files.items():
+                f.write(f"### {format.upper()}\n\n")
+                for bench_type, filename in plots_list:
+                    f.write(f"#### {bench_type.capitalize()}\n\n")
+                    f.write(f"![{bench_type} results]({filename})\n\n")
         else:
             f.write("No plots generated.\n")
 
