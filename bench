@@ -938,8 +938,8 @@ def generate_summary(result_dir: str, raw_json_path: str):
                         parsed_results[bench_type][fmt].append(
                             {
                                 "name": base_name,
-                                "mean": result.get("mean", 0) * 1000,  # ms
-                                "stddev": result.get("stddev", 0) * 1000,  # ms
+                                "mean": (result.get("mean") or 0) * 1000,  # ms
+                                "stddev": (result.get("stddev") or 0) * 1000,  # ms
                             }
                         )
         except Exception:
@@ -977,10 +977,10 @@ def generate_summary(result_dir: str, raw_json_path: str):
 
         for result in data.get("results", []):
             name = result.get("command", "unknown")
-            mean = result.get("mean", 0) * 1000  # Convert to ms
-            stddev = result.get("stddev", 0) * 1000
-            min_time = result.get("min", 0) * 1000
-            max_time = result.get("max", 0) * 1000
+            mean = (result.get("mean") or 0) * 1000  # Convert to ms
+            stddev = (result.get("stddev") or 0) * 1000
+            min_time = (result.get("min") or 0) * 1000
+            max_time = (result.get("max") or 0) * 1000
 
             # Calculate 95% confidence interval
             times = result.get("times", [])
