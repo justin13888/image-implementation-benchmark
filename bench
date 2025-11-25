@@ -288,6 +288,7 @@ IMPLEMENTATIONS: Dict[ImageFormat, list[Implementation]] = {
 }
 
 
+# TODO: Verify it works on macOS and Windows vv
 def get_system_info() -> Dict[str, Any]:
     """Collect system information for reproducibility manifest."""
     info = {
@@ -428,7 +429,7 @@ def build_projects(formats: list[ImageFormat], skip_build: bool):
 
             bin_path = impl.bin
             build_dir = os.path.dirname(bin_path)
-            src_dir = os.path.dirname(build_dir)
+            # src_dir = os.path.dirname(build_dir)
 
             print(f"  Building {impl.name}...")
             os.makedirs(build_dir, exist_ok=True)
@@ -484,7 +485,7 @@ def build_projects(formats: list[ImageFormat], skip_build: bool):
     print("\n✓ Build phase complete\n")
 
 
-def get_dataset_files(dataset_name: str) -> list[str]:
+def get_dataset_files(dataset_name: DatasetId) -> list[str]:
     """Get list of files for a given dataset."""
     if dataset_name not in DATASETS:
         raise ValueError(f"Unknown dataset: {dataset_name}")
@@ -697,7 +698,8 @@ def run_benchmarks(args: BenchmarkArgs):
             "--min-runs",
             "1",
             "--max-runs",
-            "1--export-json",
+            "1",
+            "--export-json",
             json_output,
         ]
 
@@ -707,6 +709,10 @@ def run_benchmarks(args: BenchmarkArgs):
 
     hyperfine_cmd.extend(commands)
 
+    # --show-output if debug
+    if args.debug:
+        hyperfine_cmd.append("--show-output")
+
     try:
         subprocess.run(hyperfine_cmd, check=True)
     except FileNotFoundError:
@@ -715,6 +721,7 @@ def run_benchmarks(args: BenchmarkArgs):
         sys.exit(1)
     except subprocess.CalledProcessError:
         print("\nError: Benchmark execution failed")
+        print(f"Test command: {' '.join(hyperfine_cmd)}")
         sys.exit(1)
 
     # Generate summary
@@ -1057,6 +1064,11 @@ class BenchmarkArgs(BaseModel):
         bool,
         tyro.conf.FlagCreatePairsOff,
         Field(description="Quick mode (single iteration) (only for testing)"),
+    ] = False
+    debug: Annotated[
+        bool,
+        tyro.conf.FlagCreatePairsOff,
+        Field(description="Enable debug mode (more verbose output)"),
     ] = False
 
 
