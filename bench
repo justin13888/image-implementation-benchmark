@@ -20,6 +20,7 @@ import tyro
 from matplotlib.figure import Figure
 from collections.abc import Iterator, Sequence
 from itertools import chain
+import traceback
 
 
 class ImageFormat(str, Enum):
@@ -1361,6 +1362,8 @@ if __name__ == "__main__":
         sys.exit(1)
     except Exception as e:
         print(f"\nError: {e}")
+
+        traceback.print_exc()
         sys.exit(1)
 
     sys.exit(0)
