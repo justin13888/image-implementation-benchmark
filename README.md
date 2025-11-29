@@ -244,6 +244,12 @@ sudo apt install build-essential clang clang-format cmake ccache libmimalloc-dev
 
    ```bash
    ./setup_data.sh  # Downloads KODAK, DIV2K, generates pathological tests
+   
+   # Or setup specific datasets:
+   ./setup_data.sh kodak         # Only KODAK
+   ./setup_data.sh div2k         # Only DIV2K
+   ./setup_data.sh pathological  # Only Pathological tests
+   ./setup_data.sh reference     # Only Reference encodings
    ```
 
 3. **Build implementations** (see individual implementation directories)
