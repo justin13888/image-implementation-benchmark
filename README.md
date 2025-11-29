@@ -235,7 +235,7 @@ sudo apt install build-essential clang clang-format cmake ccache libmimalloc-dev
 On macOS:
 
 ```bash
-brew install cmake pkg-config nasm imagemagick hyperfine wget webp libavif libjxl
+brew install cmake ccache pkg-config nasm imagemagick hyperfine wget webp libavif libjxl
 ```
 
 ### Setup
