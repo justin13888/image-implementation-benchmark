@@ -743,6 +743,8 @@ def run_benchmarks(args: BenchmarkArgs):
 
     # Build projects
     build_projects(formats, args.skip_build)
+    if args.compile_only:
+        return
 
     # Create results directory
     os.makedirs("results", exist_ok=True)
@@ -1186,6 +1188,11 @@ class BenchmarkArgs(BaseModel):
         bool,
         tyro.conf.FlagCreatePairsOff,
         Field(description="Pin benchmarks to specific CPU cores"),
+    ] = False
+    compile_only: Annotated[
+        bool,
+        tyro.conf.FlagCreatePairsOff,
+        Field(description="Only compile, do not run benchmarks"),
     ] = False
     quick: Annotated[
         bool,
