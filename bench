@@ -528,7 +528,7 @@ def build_rust_project(impl: Implementation):
             "build",
             "--release",
         ],  # Note: We don't have a granular way to determine the binary name, so we just build everything
-        cwd=os.path.dirname(impl.path),
+        cwd=".",
         step_name=f"{impl.name} (Cargo Build)",
     )
 
@@ -703,6 +703,9 @@ def build_bench_cmd(
 ) -> tuple[str, str]:
     """Generate [name, command] for a given implementation and parameters."""
     binary = impl.bin
+    quality: QualityTier = args.quality or (
+        QualityTier.WEB_LOW if args.quick else QualityTier.WEB_HIGH
+    )
 
     # Build command
     cmd_parts = [
@@ -712,7 +715,7 @@ def build_bench_cmd(
         "--output",
         output_path,
         "--quality",
-        args.quality,
+        quality,
         "--iterations",
         str(args.iterations),
         "--warmup",
@@ -753,6 +756,8 @@ BenchList = list[tuple[str, str]]
 def build_bench_list(
     type: BenchmarkType,
     format: ImageFormat,
+    dataset: DatasetId,
+    quality: QualityTier,
 ) -> BenchList:
     """Construct list of benchmark commands to run."""
     # Construct list of implementations to run
@@ -782,7 +787,7 @@ def build_bench_list(
             case _:
                 raise ValueError(f"Unknown implementation type: {impl.type}")
 
-        for input_file in get_input_files(args.dataset, input_format, args.quality):
+        for input_file in get_input_files(dataset, input_format, quality):
             # input_path = "{input}"  # Note: This isn't an f-string
             input_path = input_file
             output_path = "/dev/null"
@@ -841,15 +846,24 @@ def run(args: RunArgs):
     print(f"\n✓ Manifest written to {result_dir}/manifest.json")
 
     benches: BenchList = []
+    quality = args.get_quality()
     for format in formats:
         match args.mode:
             case BenchmarkMode.ENCODE:
-                benches += build_bench_list(BenchmarkType.ENCODE, format)
+                benches += build_bench_list(
+                    BenchmarkType.ENCODE, format, args.dataset, quality
+                )
             case BenchmarkMode.DECODE:
-                benches += build_bench_list(BenchmarkType.DECODE, format)
+                benches += build_bench_list(
+                    BenchmarkType.DECODE, format, args.dataset, quality
+                )
             case BenchmarkMode.BOTH:
-                benches += build_bench_list(BenchmarkType.ENCODE, format)
-                benches += build_bench_list(BenchmarkType.DECODE, format)
+                benches += build_bench_list(
+                    BenchmarkType.ENCODE, format, args.dataset, quality
+                )
+                benches += build_bench_list(
+                    BenchmarkType.DECODE, format, args.dataset, quality
+                )
             case _:
                 raise ValueError(f"Unknown benchmark type: {args.mode}")
     # TODO: Split into encode and decode benches later
@@ -1236,8 +1250,10 @@ class RunArgs(BaseModel):
     iterations: Annotated[int, Field(description="Iterations per benchmark")] = 10
     warmup: Annotated[int, Field(description="Warmup iterations")] = 2
     quality: Annotated[
-        QualityTier, tyro.conf.EnumChoicesFromValues, Field(description="Quality tier")
-    ] = QualityTier.WEB_LOW
+        Optional[QualityTier],
+        tyro.conf.EnumChoicesFromValues,
+        Field(description="Quality tier"),
+    ] = None
 
     # Booleans automatically become flags: --discard-output / --no-discard-output
     discard_output: Annotated[
@@ -1276,6 +1292,12 @@ class RunArgs(BaseModel):
         tyro.conf.FlagCreatePairsOff,
         Field(description="Enable debug mode (more verbose output)"),
     ] = False
+
+    def get_quality(self) -> QualityTier:
+        """Get the quality tier, defaulting based on quick mode."""
+        if self.quality is not None:
+            return self.quality
+        return QualityTier.WEB_LOW if self.quick else QualityTier.WEB_HIGH
 
 
 class CleanArgs(BaseModel):
@@ -1347,7 +1369,7 @@ def run_clean(args: CleanArgs):
 
 if __name__ == "__main__":
     try:
-        args = tyro.cli(CliEntry)
+        args = tyro.cli(CliEntry)  # pyright: ignore[reportArgumentType, reportCallIssue]
         if isinstance(args, CleanArgs):
             run_clean(args)
 
@@ -1356,6 +1378,9 @@ if __name__ == "__main__":
 
         elif isinstance(args, RunArgs):
             run(args)
+        else:
+            print("Error: Unknown command")
+            sys.exit(1)
     except KeyboardInterrupt:
         print("\n\nBenchmark interrupted by user")
         sys.exit(1)
