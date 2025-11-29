@@ -356,6 +356,15 @@ assert not (set(ImageFormat) - {i.format for i in IMPLEMENTATIONS}), (
 )
 
 
+def find_implementation_by_name(name: str) -> Optional[Implementation]:
+    """Find implementation by name."""
+    for impl in chain(IMPLEMENTATIONS, NULL_IMPLEMENTATIONS):
+        if impl.name == name:
+            return impl
+
+    return None
+
+
 # TODO: Verify it works on macOS and Windows vv
 def get_system_info() -> Dict[str, Any]:
     """Collect system information for reproducibility manifest."""
@@ -494,6 +503,82 @@ def run_build_command(command, cwd, step_name, max_lines=100):
         sys.exit(1)
 
 
+def build_project(impl: Implementation):
+    """Build a project by name."""
+    if impl.lang == "rust":
+        build_rust_project(impl)
+    elif impl.lang == "cpp":
+        build_cpp_project(impl)
+    else:
+        raise ValueError(f"Unknown language: {impl.lang}")
+
+
+def build_rust_project(impl: Implementation):
+    """
+    Build a Rust project.
+
+    Assumes the project language is Rust.
+    """
+    assert impl.lang == "rust", "build_rust_project() called with non-Rust project"
+
+    run_build_command(
+        [
+            "cargo",
+            "build",
+            "--release",
+        ],  # Note: We don't have a granular way to determine the binary name, so we just build everything
+        cwd=os.path.dirname(impl.path),
+        step_name=f"{impl.name} (Cargo Build)",
+    )
+
+
+def build_cpp_project(impl: Implementation):
+    """
+    Build a C++ project.
+
+    Assumes the project language is C++.
+    """
+    assert impl.lang == "cpp", "build_cpp_project() called with non-C++ project"
+
+    bin_path = impl.bin
+    build_dir = os.path.dirname(bin_path)
+
+    print(f"  Building {impl.name}...")
+    os.makedirs(build_dir, exist_ok=True)
+
+    # 1. Configure with CMake
+    run_build_command(
+        [
+            "cmake",
+            "..",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-D",
+            "CMAKE_C_COMPILER_LAUNCHER=ccache",
+            "-D",
+            "CMAKE_CXX_COMPILER_LAUNCHER=ccache",
+        ],
+        cwd=build_dir,
+        step_name=f"{impl.name} (CMake Configuration)",
+    )
+
+    # 2. Build with Make
+    run_build_command(
+        ["make", "-j"],
+        cwd=build_dir,
+        step_name=f"{impl.name} (Make Compilation)",
+    )
+
+    # 3. Verify binary was created
+    if not os.path.exists(bin_path):
+        print(f"    ✗ {impl.name} - binary not found at {bin_path}")
+        print(f"\n✗ Build failed for {impl.name} (File missing)")
+        sys.exit(1)
+    else:
+        print(f"    ✓ {impl.name}")
+
+    return True
+
+
 def build_projects(formats: list[ImageFormat]):
     """Build Rust and C++ projects."""
 
@@ -523,41 +608,7 @@ def build_projects(formats: list[ImageFormat]):
             if impl.lang != "cpp":
                 continue
 
-            bin_path = impl.bin
-            build_dir = os.path.dirname(bin_path)
-
-            print(f"  Building {impl.name}...")
-            os.makedirs(build_dir, exist_ok=True)
-
-            # 1. Configure with CMake
-            run_build_command(
-                [
-                    "cmake",
-                    "..",
-                    "-DCMAKE_BUILD_TYPE=Release",
-                    "-D",
-                    "CMAKE_C_COMPILER_LAUNCHER=ccache",
-                    "-D",
-                    "CMAKE_CXX_COMPILER_LAUNCHER=ccache",
-                ],
-                cwd=build_dir,
-                step_name=f"{impl.name} (CMake Configuration)",
-            )
-
-            # 2. Build with Make
-            run_build_command(
-                ["make", "-j"],
-                cwd=build_dir,
-                step_name=f"{impl.name} (Make Compilation)",
-            )
-
-            # 3. Verify binary was created
-            if not os.path.exists(bin_path):
-                print(f"    ✗ {impl.name} - binary not found at {bin_path}")
-                print(f"\n✗ Build failed for {impl.name} (File missing)")
-                sys.exit(1)
-            else:
-                print(f"    ✓ {impl.name}")
+            build_cpp_project(impl)
 
     print("\n✓ Build phase complete\n")
 
@@ -882,8 +933,18 @@ def run(args: RunArgs):
 def run_compile(args: CompileArgs):
     """Compile the project."""
     print("🔨 Compiling project...")
-    formats = args.formats or list(ImageFormat)
-    build_projects(formats)
+    if not args.implementations:
+        # Build all implementations
+        formats = list(ImageFormat)
+        build_projects(formats)
+    else:
+        for name in args.implementations:
+            # Find implementation by name
+            impl = find_implementation_by_name(name)
+            if not impl:
+                print(f"\nError: Implementation '{name}' not found")
+                sys.exit(1)
+            build_project(impl)
 
     pass
 
@@ -1235,10 +1296,10 @@ class CleanArgs(BaseModel):
 class CompileArgs(BaseModel):
     """Compile the project."""
 
-    formats: Annotated[
-        Optional[list[ImageFormat]],
+    implementations: Annotated[
+        Optional[list[str]],
         tyro.conf.EnumChoicesFromValues,
-        Field(description="List of formats to test."),
+        Field(description="List of implementations to compile."),
     ] = None
 
     pass
