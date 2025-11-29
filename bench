@@ -463,6 +463,37 @@ def get_library_versions() -> Dict[str, str]:
     return libraries
 
 
+def run_build_command(command, cwd, step_name, max_lines=100):
+    """Helper function to run commands with detailed error logging."""
+    try:
+        subprocess.run(
+            command,
+            cwd=cwd,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"\n    ✗ {step_name} failed")
+        print(f"    Command: {' '.join(command)}")
+
+        # Helper to print the tail of the log
+        def print_log_tail(content, label):
+            if content:
+                lines = content.strip().split("\n")
+                count = len(lines)
+                # Get the last `max_lines` lines (where compiler errors usually live)
+                tail = lines[-max_lines:]
+                print(f"\n    --- {label} (Last {len(tail)} of {count} lines) ---")
+                for line in tail:
+                    print(f"      {line}")
+
+        print_log_tail(e.stdout, "STDOUT")
+        print_log_tail(e.stderr, "STDERR")
+        print(f"\n✗ Build process aborted during {step_name}.")
+        sys.exit(1)
+
+
 def build_projects(formats: list[ImageFormat]):
     """Build Rust and C++ projects."""
 
@@ -494,58 +525,39 @@ def build_projects(formats: list[ImageFormat]):
 
             bin_path = impl.bin
             build_dir = os.path.dirname(bin_path)
-            # src_dir = os.path.dirname(build_dir)
 
             print(f"  Building {impl.name}...")
             os.makedirs(build_dir, exist_ok=True)
 
-            try:
-                # Configure with CMake
-                subprocess.run(
-                    [
-                        "cmake",
-                        "..",
-                        "-DCMAKE_BUILD_TYPE=Release",
-                        "-D",
-                        "CMAKE_C_COMPILER_LAUNCHER=ccache",
-                        "-D",
-                        "CMAKE_CXX_COMPILER_LAUNCHER=ccache",
-                    ],
-                    cwd=build_dir,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-                # Build
-                subprocess.run(
-                    ["make", "-j"],
-                    cwd=build_dir,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
+            # 1. Configure with CMake
+            run_build_command(
+                [
+                    "cmake",
+                    "..",
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    "-D",
+                    "CMAKE_C_COMPILER_LAUNCHER=ccache",
+                    "-D",
+                    "CMAKE_CXX_COMPILER_LAUNCHER=ccache",
+                ],
+                cwd=build_dir,
+                step_name=f"{impl.name} (CMake Configuration)",
+            )
 
-                # Verify binary was created
-                if not os.path.exists(bin_path):
-                    print(f"    ✗ {impl.name} - binary not found at {bin_path}")
-                    print(f"\n✗ Build failed for {impl.name}")
-                    sys.exit(1)
-                else:
-                    print(f"    ✓ {impl.name}")
+            # 2. Build with Make
+            run_build_command(
+                ["make", "-j"],
+                cwd=build_dir,
+                step_name=f"{impl.name} (Make Compilation)",
+            )
 
-            except subprocess.CalledProcessError as e:
-                print(f"    ✗ {impl.name} failed")
-                print("\n    Error output:")
-                if e.stderr:
-                    for line in e.stderr.strip().split("\n")[
-                        :10
-                    ]:  # Show first 10 lines
-                        print(f"      {line}")
-                if e.stdout:
-                    for line in e.stdout.strip().split("\n")[:10]:
-                        print(f"      {line}")
-                print(f"\n✗ Build failed for {impl.name}")
+            # 3. Verify binary was created
+            if not os.path.exists(bin_path):
+                print(f"    ✗ {impl.name} - binary not found at {bin_path}")
+                print(f"\n✗ Build failed for {impl.name} (File missing)")
                 sys.exit(1)
+            else:
+                print(f"    ✓ {impl.name}")
 
     print("\n✓ Build phase complete\n")
 
