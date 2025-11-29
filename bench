@@ -867,35 +867,6 @@ def run(args: RunArgs):
     print()
 
 
-def run_clean(args: CleanArgs):
-    """Clean build artifacts."""
-    print("🧹 Cleaning project...\n")
-
-    # cargo clean
-    print("Run cargo clean...")
-    subprocess.run(["cargo", "clean"], check=True)
-
-    # Delete implementations/cpp/**/build
-    print("Delete implementations/cpp/**/build...")
-    subprocess.run(["rm", "-rf", "implementations/cpp/**/build"], check=True)
-
-    # Delete result directory
-    if os.path.exists("results"):
-        # Ask for confirmation
-        if not args.yes:
-            confirm = input("Delete results directory? (y/N): ")
-            if confirm.lower() != "y":
-                return
-        import shutil
-
-        print("Delete results directory...")
-        shutil.rmtree("results")
-    else:
-        print("Skipping: Results directory does not exist.")
-
-    pass
-
-
 def run_compile(args: CompileArgs):
     """Compile the project."""
     print("🔨 Compiling project...")
@@ -1268,6 +1239,39 @@ CliEntry = Union[
 ]
 
 
+def run_clean(args: CleanArgs):
+    """Clean build artifacts."""
+    print("🧹 Cleaning project...\n")
+
+    # cargo clean
+    print("Run cargo clean...")
+    subprocess.run(["cargo", "clean"], check=True)
+
+    # Delete implementations/cpp/**/build
+    print("Delete implementations/cpp/**/build...")
+    # Use glob to find directories
+    import glob
+    import shutil
+
+    build_dirs = glob.glob("implementations/cpp/*/build")
+    for build_dir in build_dirs:
+        print(f"  Deleting {build_dir}...")
+        shutil.rmtree(build_dir, ignore_errors=True)
+
+    # Delete result directory
+    if os.path.exists("results"):
+        # Ask for confirmation
+        if not args.yes:
+            confirm = input("Delete results directory? (y/N): ")
+            if confirm.lower() != "y":
+                return
+
+        print("Delete results directory...")
+        shutil.rmtree("results")
+    else:
+        print("Skipping: Results directory does not exist.")
+
+
 if __name__ == "__main__":
     try:
         args = tyro.cli(CliEntry)
@@ -1281,4 +1285,9 @@ if __name__ == "__main__":
             run(args)
     except KeyboardInterrupt:
         print("\n\nBenchmark interrupted by user")
-    sys.exit(1)
+        sys.exit(1)
+    except Exception as e:
+        print(f"\nError: {e}")
+        sys.exit(1)
+
+    sys.exit(0)
