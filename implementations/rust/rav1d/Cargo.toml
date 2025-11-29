@@ -9,6 +9,9 @@ path = "src/decode.rs"
 
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }
-rav1d = "1.1"
+rav1d = { version = "1.1", default-features = false, features = [
+    "bitdepth_8",
+    "bitdepth_16",
+] }
 anyhow = "1.0"
 image = "0.25.9"

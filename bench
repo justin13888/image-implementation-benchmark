@@ -771,8 +771,7 @@ def build_bench_list(
     for impl in implementations:
         # Verify binary exists
         if not os.path.exists(impl.bin):
-            print(f"Warning: Binary not found, skipping: {impl.bin}")
-            continue
+            raise RuntimeError(f"Error: Binary not found: {impl.bin}")
 
         # Determine correct input format
         match impl.type:

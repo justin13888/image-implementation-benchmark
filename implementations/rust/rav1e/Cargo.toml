@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "bench-rav1e"
+name = "bench-rav1e-encode"
 path = "src/encode.rs"
 
 [dependencies]
