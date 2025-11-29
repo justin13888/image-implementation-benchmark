@@ -488,9 +488,6 @@ def build_projects(formats: list[ImageFormat], skip_build: bool):
     print("\n[2/2] Building C++ projects...")
 
     for fmt in formats:
-        if fmt not in IMPLEMENTATIONS:
-            continue
-
         for impl in chain(
             NULL_IMPLEMENTATIONS,
             (impl for impl in IMPLEMENTATIONS if impl.format == fmt),
