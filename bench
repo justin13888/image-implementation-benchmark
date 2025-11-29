@@ -463,11 +463,8 @@ def get_library_versions() -> Dict[str, str]:
     return libraries
 
 
-def build_projects(formats: list[ImageFormat], skip_build: bool):
+def build_projects(formats: list[ImageFormat]):
     """Build Rust and C++ projects."""
-    if skip_build:
-        print("Skipping build step (--skip-build)")
-        return
 
     print("=" * 70)
     print("BUILDING PROJECTS")
@@ -638,7 +635,7 @@ def build_bench_cmd(
     fmt: ImageFormat,
     input_path: str,
     output_path: str,
-    args: BenchmarkArgs,
+    args: RunArgs,
 ) -> tuple[str, str]:
     """Generate [name, command] for a given implementation and parameters."""
     binary = impl.bin
@@ -734,14 +731,15 @@ def build_bench_list(
     return benches
 
 
-def run_benchmarks(args: BenchmarkArgs):
+def run(args: RunArgs):
     """Execute benchmarks using hyperfine."""
     formats = args.formats or list(ImageFormat)
 
     # Build projects
-    build_projects(formats, args.skip_build)
-    if args.compile_only:
-        return
+    if not args.skip_build:
+        build_projects(formats)
+    else:
+        print("Skipping build step (--skip-build)...")
 
     # Create results directory
     os.makedirs("results", exist_ok=True)
@@ -867,6 +865,44 @@ def run_benchmarks(args: BenchmarkArgs):
     if args.measure_memory:
         print("  - memory.csv     : Peak memory usage")
     print()
+
+
+def run_clean(args: CleanArgs):
+    """Clean build artifacts."""
+    print("🧹 Cleaning project...\n")
+
+    # cargo clean
+    print("Run cargo clean...")
+    subprocess.run(["cargo", "clean"], check=True)
+
+    # Delete implementations/cpp/**/build
+    print("Delete implementations/cpp/**/build...")
+    subprocess.run(["rm", "-rf", "implementations/cpp/**/build"], check=True)
+
+    # Delete result directory
+    if os.path.exists("results"):
+        # Ask for confirmation
+        if not args.yes:
+            confirm = input("Delete results directory? (y/N): ")
+            if confirm.lower() != "y":
+                return
+        import shutil
+
+        print("Delete results directory...")
+        shutil.rmtree("results")
+    else:
+        print("Skipping: Results directory does not exist.")
+
+    pass
+
+
+def run_compile(args: CompileArgs):
+    """Compile the project."""
+    print("🔨 Compiling project...")
+    formats = args.formats or list(ImageFormat)
+    build_projects(formats)
+
+    pass
 
 
 # def measure_memory(result_dir: str, commands: list[str], command_names: list[str]):
@@ -1134,7 +1170,7 @@ def generate_summary(result_dir: str, raw_json_path: str):
     print(f"\n✓ Summary written to {summary_path}")
 
 
-class BenchmarkArgs(BaseModel):
+class RunArgs(BaseModel):
     formats: Annotated[
         Optional[list[ImageFormat]],
         tyro.conf.EnumChoicesFromValues,
@@ -1186,11 +1222,6 @@ class BenchmarkArgs(BaseModel):
         tyro.conf.FlagCreatePairsOff,
         Field(description="Pin benchmarks to specific CPU cores"),
     ] = False
-    compile_only: Annotated[
-        bool,
-        tyro.conf.FlagCreatePairsOff,
-        Field(description="Only compile, do not run benchmarks"),
-    ] = False
     quick: Annotated[
         bool,
         tyro.conf.FlagCreatePairsOff,
@@ -1203,20 +1234,51 @@ class BenchmarkArgs(BaseModel):
     ] = False
 
 
-# **Examples:**
+class CleanArgs(BaseModel):
+    """Clean build artifacts."""
 
-# * `./bench` (Run all defaults)
-# * `./bench --dataset kodak` (Benchmark KODAK)
-# * `./bench --formats jpeg,avif` (Only test JPEG and AVIF)
-# * `./bench --type decode` (Only decode benchmarks)
-# * `./bench --threads 0` (Use all cores)
-# * `./bench --discard-output` (Pure compute, no I/O)
+    yes: Annotated[
+        bool,
+        tyro.conf.arg(
+            aliases=["-y"],
+        ),
+        tyro.conf.FlagCreatePairsOff,
+        Field(description="Skip confirmation prompt"),
+    ] = False
+
+    pass
+
+
+class CompileArgs(BaseModel):
+    """Compile the project."""
+
+    formats: Annotated[
+        Optional[list[ImageFormat]],
+        tyro.conf.EnumChoicesFromValues,
+        Field(description="List of formats to test."),
+    ] = None
+
+    pass
+
+
+CliEntry = Union[
+    Annotated[RunArgs, tyro.conf.subcommand(name="run")],
+    Annotated[CleanArgs, tyro.conf.subcommand(name="clean")],
+    Annotated[CompileArgs, tyro.conf.subcommand(name="compile")],
+]
 
 
 if __name__ == "__main__":
     try:
-        args = tyro.cli(BenchmarkArgs)
-        run_benchmarks(args)
+        args = tyro.cli(CliEntry)
+        if isinstance(args, CleanArgs):
+            run_clean(args)
+
+        elif isinstance(args, CompileArgs):
+            run_compile(args)
+
+        elif isinstance(args, RunArgs):
+            run(args)
     except KeyboardInterrupt:
         print("\n\nBenchmark interrupted by user")
-        sys.exit(1)
+    sys.exit(1)

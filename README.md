@@ -232,6 +232,12 @@ sudo apt install build-essential clang clang-format cmake ccache libmimalloc-dev
   pkg-config nasm imagemagick hyperfine wget unzip webp libavif-bin libjxl-tools
 ```
 
+On macOS:
+
+```bash
+brew install cmake pkg-config nasm imagemagick hyperfine wget webp libavif libjxl
+```
+
 ### Setup
 
 1. **Install Python dependencies**:
@@ -256,35 +262,44 @@ sudo apt install build-essential clang clang-format cmake ccache libmimalloc-dev
 
 ### Running Benchmarks
 
-Use `./bench` with a dataset. Always specify `--dataset` (default `test` has minimal coverage):
+Use `./bench run` with a dataset. Always specify `--dataset` (default `test` has minimal coverage):
 
 ```bash
 # Recommended: KODAK dataset (24 images, cache-resident)
-./bench --dataset kodak
+./bench run --dataset kodak
 
 # High-resolution testing (20 diverse 2K/4K images)
-./bench --dataset div2k
+./bench run --dataset div2k
 
 # Pathological/stress testing (4 synthetic images)
-./bench --dataset pathological
+./bench run --dataset pathological
 
 # Run specific formats
-./bench --dataset kodak --formats jpeg,avif
+./bench run --dataset kodak --formats jpeg,avif
 
 # Decode-only benchmarks
-./bench --dataset kodak --mode decode
+./bench run --dataset kodak --mode decode
 
 # Parallel benchmarks (all CPU cores)
-./bench --dataset kodak --threads 0
+./bench run --dataset kodak --threads 0
 
 # Discard output I/O (pure compute)
-./bench --dataset kodak --discard-output
+./bench run --dataset kodak --discard-output
 
 # With verification (slower)
-./bench --dataset kodak --verify
+./bench run --dataset kodak --verify
 
 # Measure memory usage
-./bench --dataset div2k --measure-memory
+./bench run --dataset div2k --measure-memory
+
+# Compile all benchmarks
+./bench compile
+```
+
+### Cleanup
+
+```bash
+./bench clean
 ```
 
 ### Results
