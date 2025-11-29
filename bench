@@ -1232,7 +1232,7 @@ class RunArgs(BaseModel):
     ] = BenchmarkMode.BOTH
     threads: Annotated[
         int, Field(ge=0, description="Number of threads (0 = all cores)")
-    ] = 1
+    ] = 0
     iterations: Annotated[int, Field(description="Iterations per benchmark")] = 10
     warmup: Annotated[int, Field(description="Warmup iterations")] = 2
     quality: Annotated[
