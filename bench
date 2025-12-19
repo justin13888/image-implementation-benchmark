@@ -293,13 +293,6 @@ IMPLEMENTATIONS: list[Implementation] = [
         type=BenchmarkType.ENCODE,
         format=ImageFormat.AVIF,
     ),
-    # Implementation(
-    #     name="rav1d-decode",
-    #     lang="rust",
-    #     bin="target/release/bench-rav1d-decode",
-    #     type=BenchmarkType.DECODE,
-    #     format=ImageFormat.AVIF,
-    # ), // TODO: Finish rav1d
     Implementation(
         name="libavif-decode",
         lang="cpp",
@@ -730,9 +723,6 @@ def build_bench_cmd(
     if args.verify:
         cmd_parts.append("--verify")
 
-    if args.preallocate:
-        cmd_parts.append("--preallocate")
-
     # Wrap with /usr/bin/time if measuring memory
     if args.measure_memory:
         cmd_parts = ["/usr/bin/time", "-v"] + cmd_parts
@@ -835,7 +825,6 @@ def run(args: RunArgs):
             "quality": args.quality,
             "discard_output": args.discard_output,
             "verify": args.verify,
-            "preallocate": args.preallocate,
             "pin_cores": args.pin_cores,
         },
     }
@@ -1266,9 +1255,7 @@ class RunArgs(BaseModel):
         tyro.conf.FlagCreatePairsOff,
         Field(description="Enable correctness verification"),
     ] = False
-    preallocate: Annotated[
-        bool, tyro.conf.FlagCreatePairsOff, Field(description="Preallocate buffers")
-    ] = False
+
     measure_memory: Annotated[
         bool,
         tyro.conf.FlagCreatePairsOff,

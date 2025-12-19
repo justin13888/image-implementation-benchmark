@@ -43,10 +43,6 @@ pub struct Args {
 
     #[arg(long)]
     pub verify: bool,
-
-    #[arg(long)]
-    pub preallocate: bool,
-
     #[arg(long, default_value_t = 60.0)]
     pub verify_threshold: f64,
 }

@@ -41,15 +41,18 @@ impl BenchmarkImplementation for ZuneJpegBench {
         Ok(pixels)
     }
 
-    fn verify(&self, _args: &Args, context: &dyn std::any::Any, output: &[u8]) -> Result<()> {
+    fn verify(&self, args: &Args, context: &dyn std::any::Any, output: &[u8]) -> Result<()> {
         let ctx = context
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
 
         if let Some(ref reference) = ctx.reference_pixels {
             let psnr = benchmark_harness::calculate_psnr(output, reference)?;
-            if psnr < 60.0 {
-                anyhow::bail!("PSNR too low: {psnr:.2} dB (threshold: 60.0 dB)");
+            if psnr < args.verify_threshold {
+                anyhow::bail!(
+                    "PSNR too low: {psnr:.2} dB (threshold: {:.2} dB)",
+                    args.verify_threshold
+                );
             }
         } else {
             anyhow::bail!("No reference data available for verification");

@@ -24,7 +24,7 @@ struct Args {
   int threads = 0;
   bool discard = false;
   bool verify = false;
-  bool preallocate = false;
+
   double verify_threshold = 60.0;
 };
 
@@ -116,8 +116,7 @@ inline Args parse_args(int argc, char** argv) {
       args.discard = true;
     else if (arg == "--verify")
       args.verify = true;
-    else if (arg == "--preallocate")
-      args.preallocate = true;
+
     else if (arg == "--verify-threshold" && i + 1 < argc)
       args.verify_threshold = std::stod(argv[++i]);
   }

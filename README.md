@@ -98,7 +98,7 @@ Memory is allocated and freed inside each iteration to simulate realistic per-re
 | C/C++    | mimalloc  | Linked explicitly via `-lmimalloc`                                                         |
 | Rust     | mimalloc  | Via `mimalloc = { version = "0.1", features = ["local_dynamic_tls"] }` as global allocator |
 
-For benchmarks where pure codec performance (excluding allocation) is desired, use the `--preallocate` flag, which reuses a single buffer across iterations.
+**Note:** We purposely include allocation time in the measurements to reflect real-world usage patterns. We do not support preallocation for the timebeing.
 
 #### Verification Strategy
 
@@ -350,15 +350,15 @@ We include modern formats and their most competitive implementations.
 | **dav1d**      | C/Asm    | Direct decoder (bypasses libavif wrapper) |
 | **rav1e**      | Rust     | Encoder                                   |
 
-<!-- | **rav1d**      | Rust     | Port of dav1d. Approaching stability as of late 2025. | -->
+<!-- | **rav1d**      | Rust     | Excluded due to API complexity and incomplete state. | -->
 
 ### JPEG XL
 
-| Implementation  | Language | Notes                         |
-| :-------------- | :------- | :---------------------------- |
-| **libjxl**      | C++      | Reference implementation      |
-| **jxl-oxide**   | Rust     | Pure Rust decoder             |
-| **zune-jpegxl** | Rust     | Optimized Rust implementation |
+| Implementation  | Language | Notes                                    |
+| :-------------- | :------- | :--------------------------------------- |
+| **libjxl**      | C++      | Reference implementation                 |
+| **jxl-oxide**   | Rust     | Pure Rust decoder                        |
+| **zune-jpegxl** | Rust     | Optimized Rust encoder (Decoder pending) |
 
 ## Limitations and Caveats
 
@@ -374,6 +374,6 @@ We include modern formats and their most competitive implementations.
 
 Contributions are welcome!
 
-* **New Implementations:** Must implement the standard CLI defined in "Benchmarking Architecture", including `--warmup`, `--threads`, `--verify`, and `--preallocate` flags.
+* **New Implementations:** Must implement the standard CLI defined in "Benchmarking Architecture", including `--warmup`, `--threads`, and `--verify` flags.
 * **Optimization:** If you find flags or methods that improve a specific implementation, open a PR with benchmark results and updated manifest.
 * **Image Sets:** Proposals for additional pathological or domain-specific test images are welcome.
