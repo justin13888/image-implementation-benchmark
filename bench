@@ -654,12 +654,13 @@ def get_dataset_files(dataset_name: DatasetId) -> list[str]:
     return files
 
 
-REFERENCE_ENCODERS: Dict[ImageFormat, str] = {
+REFERENCE_ENCODERS: Dict[InputImageFormat, str] = {
     ImageFormat.JPEG: "libjpeg-turbo-encode",
     ImageFormat.PNG: "libpng-encode",
     ImageFormat.WEBP: "libwebp-encode",
     ImageFormat.AVIF: "libavif-encode",
     ImageFormat.JXL: "libjxl-encode",
+    PPMImageFormat.PPM: "null-cpp-encode",
 }
 
 
@@ -1022,8 +1023,7 @@ def run_compile(args: CompileArgs):
             # Find implementation by name
             impl = find_implementation_by_name(name)
             if not impl:
-                print(f"\nError: Implementation '{name}' not found")
-                sys.exit(1)
+                raise RuntimeError(f"\nError: Implementation '{name}' not found")
             build_project(impl)
 
     pass
