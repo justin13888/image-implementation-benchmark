@@ -354,11 +354,11 @@ We include modern formats and their most competitive implementations.
 
 ### JPEG XL
 
-| Implementation  | Language | Notes                                    |
-| :-------------- | :------- | :--------------------------------------- |
-| **libjxl**      | C++      | Reference implementation                 |
-| **jxl-oxide**   | Rust     | Pure Rust decoder                        |
-| **zune-jpegxl** | Rust     | Optimized Rust encoder (Decoder pending) |
+| Implementation  | Language | Notes                    |
+| :-------------- | :------- | :----------------------- |
+| **libjxl**      | C++      | Reference implementation |
+| **jxl-oxide**   | Rust     | Pure Rust decoder        |
+| **zune-jpegxl** | Rust     | Optimized Rust encoder   |
 
 ## Limitations and Caveats
 
