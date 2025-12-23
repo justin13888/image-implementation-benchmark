@@ -50,11 +50,11 @@ Choose your dataset based on your benchmarking goals:
 
 We benchmark against three distinct use cases. The CLI accepts tier names directly (`--quality web-low`), and each binary maps these to format-specific arguments internally.
 
-| Tier         | Intent            | JPEG                | AVIF             | JXL           | WEBP         |
-| :----------- | :---------------- | :------------------ | :--------------- | :------------ | :----------- |
-| **web-low**  | Thumbnail/Preview | Q50, Baseline       | Q65, Speed 6     | d4.0, e7      | Q50, m4      |
-| **web-high** | Standard Delivery | Q80, Progressive    | Q65, Grain Synth | d1.0, e7      | Q75, m4      |
-| **archival** | High Fidelity     | Q95, No Subsampling | Q85, YUV444      | d0 (Lossless) | Lossless, z6 |
+| Tier         | Intent            | JPEG                | AVIF             | JXL               | WEBP         |
+| :----------- | :---------------- | :------------------ | :--------------- | :---------------- | :----------- |
+| **web-low**  | Thumbnail/Preview | Q50, Baseline       | Q65, Speed 6     | d4.0, e7          | Q50, m4      |
+| **web-high** | Standard Delivery | Q80, Progressive    | Q65, Grain Synth | d1.0, e7          | Q75, m4      |
+| **archival** | High Fidelity     | Q95, No Subsampling | Q85, YUV444      | d0, e9 (Lossless) | Lossless, z6 |
 
 ### Benchmarking Architecture
 

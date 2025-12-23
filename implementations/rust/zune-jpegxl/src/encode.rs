@@ -11,7 +11,7 @@ struct BenchContext {
     input_data: Vec<u8>,
     width: usize,
     height: usize,
-    _quality: Quality,
+    quality: Quality,
 }
 
 impl BenchmarkImplementation for ZuneJxlBench {
@@ -30,7 +30,7 @@ impl BenchmarkImplementation for ZuneJxlBench {
             input_data,
             width,
             height,
-            _quality: args.quality,
+            quality: args.quality,
         }))
     }
 
@@ -39,8 +39,15 @@ impl BenchmarkImplementation for ZuneJxlBench {
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
 
-        let options = EncoderOptions::new(ctx.width, ctx.height, ColorSpace::RGB, BitDepth::Eight);
-
+        // TODO: see if zune exposes distance parameter as something not quality setting.
+        let (quality, effort) = match ctx.quality {
+            Quality::WebLow => (50, 7),    // Approximate d4.0
+            Quality::WebHigh => (90, 7),   // Approximate d1.0
+            Quality::Archival => (100, 9), // lossless
+        };
+        let options = EncoderOptions::new(ctx.width, ctx.height, ColorSpace::RGB, BitDepth::Eight)
+            .set_effort(effort)
+            .set_quality(quality);
         let encoder = JxlSimpleEncoder::new(&ctx.input_data, options);
 
         // Create output buffer - estimate size needed

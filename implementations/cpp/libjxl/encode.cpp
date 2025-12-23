@@ -3,7 +3,6 @@
 #include <jxl/thread_parallel_runner.h>
 #include <jxl/thread_parallel_runner_cxx.h>
 
-#include <fstream>
 #include <iostream>  // Added for debug logging if needed
 #include <stdexcept>
 #include <vector>
@@ -15,6 +14,12 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
   std::string name() const override { return "libjxl-encode"; }
 
   void prepare(const Args &args) override {
+    // Initialize thread pool once
+    runner = JxlThreadParallelRunnerMake(
+        nullptr, args.threads > 0
+                     ? args.threads
+                     : JxlThreadParallelRunnerDefaultNumWorkerThreads());
+
     // Load input PPM file
     std::ifstream file(args.input, std::ios::binary | std::ios::ate);
     if (!file)
@@ -93,24 +98,20 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
     // Configure quality settings per README spec
     if (args.quality == "web-low") {
       distance = 4.0f;
-      effort = 3;
+      effort = 7;
       lossless = false;
     } else if (args.quality == "web-high") {
       distance = 1.0f;
-      effort = 5;
+      effort = 7;
       lossless = false;
     } else {  // archival
       distance = 0.0f;
-      effort = 7;
+      effort = 9;
       lossless = true;
     }
   }
 
   std::vector<uint8_t> run(const Args &args) override {
-    auto runner = JxlThreadParallelRunnerMake(
-        nullptr, args.threads > 0
-                     ? args.threads
-                     : JxlThreadParallelRunnerDefaultNumWorkerThreads());
     auto enc = JxlEncoderMake(nullptr);
 
     if (JXL_ENC_SUCCESS != JxlEncoderSetParallelRunner(enc.get(),
@@ -214,6 +215,7 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
   float distance;
   int effort;
   bool lossless;
+  JxlThreadParallelRunnerPtr runner{nullptr};
 };
 
 int main(int argc, char **argv) {
