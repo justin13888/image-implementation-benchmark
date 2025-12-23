@@ -3,7 +3,7 @@
 #include <jxl/thread_parallel_runner.h>
 #include <jxl/thread_parallel_runner_cxx.h>
 
-#include <iostream>  // Added for debug logging if needed
+#include <iostream>
 #include <stdexcept>
 #include <vector>
 
@@ -61,7 +61,7 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
       pos++;
     }
     skip_whitespace();
-    skip_comments();  // Comments can appear between width and height
+    skip_comments();
 
     // Read Height
     height = 0;
@@ -79,12 +79,10 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
       pos++;
     }
 
-    // P6 spec: single whitespace char follows maxval
     if (pos < buffer.size() && isspace(data[pos])) {
       pos++;
     }
 
-    // Calculate expected raw size to avoid buffer mismatch errors
     int bytes_per_channel = (max_val > 255) ? 2 : 1;
     size_t expected_bytes = (size_t)width * height * 3 * bytes_per_channel;
 
@@ -92,10 +90,9 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
       throw std::runtime_error("Incomplete P6 file");
     }
 
-    // Assign EXACTLY the needed bytes.
     input_data.assign(data + pos, data + pos + expected_bytes);
 
-    // Configure quality settings per README spec
+    // Configure quality settings
     if (args.quality == "web-low") {
       distance = 4.0f;
       effort = 7;
@@ -124,21 +121,16 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
 
     if (max_val > 255) {
       pixel_format.data_type = JXL_TYPE_UINT16;
-      // P6 standard defines multi-byte samples as Big Endian (Most Significant
-      // Byte first)
       pixel_format.endianness = JXL_BIG_ENDIAN;
     } else {
       pixel_format.data_type = JXL_TYPE_UINT8;
-      pixel_format.endianness =
-          JXL_LITTLE_ENDIAN;  // Endianness doesn't matter for 1 byte
+      pixel_format.endianness = JXL_LITTLE_ENDIAN;
     }
 
     JxlBasicInfo basic_info;
     JxlEncoderInitBasicInfo(&basic_info);
     basic_info.xsize = width;
     basic_info.ysize = height;
-    // IMPORTANT: For 16-bit input, we usually want to keep the bit depth in
-    // basic info
     if (max_val > 255) {
       basic_info.bits_per_sample = 16;
     } else {
@@ -201,17 +193,11 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
     return compressed;
   }
 
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    if (output.empty()) {
-      throw std::runtime_error("Encoder produced empty output");
-    }
-  }
-
  private:
   std::vector<uint8_t> input_data;
   int width;
   int height;
-  int max_val;  // Added to store bit-depth info
+  int max_val;
   float distance;
   int effort;
   bool lossless;

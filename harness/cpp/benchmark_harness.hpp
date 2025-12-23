@@ -23,9 +23,6 @@ struct Args {
   int warmup = 2;
   int threads = 0;
   bool discard = false;
-  bool verify = false;
-
-  double verify_threshold = 60.0;
 };
 
 class BenchmarkImplementation {
@@ -34,62 +31,7 @@ class BenchmarkImplementation {
   virtual std::string name() const = 0;
   virtual void prepare(const Args& args) = 0;
   virtual std::vector<uint8_t> run(const Args& args) = 0;
-  virtual void verify(const Args& args, const std::vector<uint8_t>& output) = 0;
 };
-
-// Calculate PSNR between two byte arrays
-inline double calculate_psnr(const std::vector<uint8_t>& a,
-                             const std::vector<uint8_t>& b) {
-  if (a.size() != b.size()) {
-    throw std::runtime_error("Image size mismatch for PSNR calculation");
-  }
-
-  double mse = 0.0;
-  for (size_t i = 0; i < a.size(); ++i) {
-    double diff = static_cast<double>(a[i]) - static_cast<double>(b[i]);
-    mse += diff * diff;
-  }
-  mse /= a.size();
-
-  if (mse == 0.0) {
-    return INFINITY;
-  }
-
-  return 10.0 * std::log10(255.0 * 255.0 / mse);
-}
-
-// Verify lossless output (exact byte match)
-inline void verify_lossless(const std::vector<uint8_t>& output,
-                            const std::vector<uint8_t>& reference) {
-  if (output.size() != reference.size()) {
-    throw std::runtime_error("Lossless verification failed: size mismatch");
-  }
-
-  if (output != reference) {
-    // Find first difference
-    for (size_t i = 0; i < output.size(); ++i) {
-      if (output[i] != reference[i]) {
-        std::ostringstream oss;
-        oss << "Lossless verification failed: byte mismatch at offset " << i;
-        throw std::runtime_error(oss.str());
-      }
-    }
-  }
-}
-
-// Verify lossy output (PSNR-based)
-inline void verify_lossy(const std::vector<uint8_t>& output,
-                         const std::vector<uint8_t>& reference,
-                         double threshold_db) {
-  double psnr = calculate_psnr(output, reference);
-
-  if (psnr < threshold_db) {
-    std::ostringstream oss;
-    oss << "Lossy verification failed: PSNR " << psnr << " dB below threshold "
-        << threshold_db << " dB";
-    throw std::runtime_error(oss.str());
-  }
-}
 
 inline uint32_t crc32_hash(const std::vector<uint8_t>& data) {
   // Use zlib's hardware-accelerated CRC32 implementation
@@ -114,11 +56,6 @@ inline Args parse_args(int argc, char** argv) {
       args.threads = std::stoi(argv[++i]);
     else if (arg == "--discard")
       args.discard = true;
-    else if (arg == "--verify")
-      args.verify = true;
-
-    else if (arg == "--verify-threshold" && i + 1 < argc)
-      args.verify_threshold = std::stod(argv[++i]);
   }
   return args;
 }
@@ -159,10 +96,6 @@ inline int run_benchmark(int argc, char** argv, BenchmarkImplementation& impl) {
           outfile.write(reinterpret_cast<const char*>(output.data()),
                         output.size());
         }
-      }
-
-      if (args.verify) {
-        impl.verify(args, output);
       }
     }
   } catch (const std::exception& e) {

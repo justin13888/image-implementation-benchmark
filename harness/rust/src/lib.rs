@@ -40,11 +40,6 @@ pub struct Args {
 
     #[arg(long)]
     pub discard: bool,
-
-    #[arg(long)]
-    pub verify: bool,
-    #[arg(long, default_value_t = 60.0)]
-    pub verify_threshold: f64,
 }
 
 pub trait BenchmarkImplementation {
@@ -57,12 +52,7 @@ pub trait BenchmarkImplementation {
     /// The core operation to benchmark (encode or decode).
     /// `context` is the object returned by `prepare`.
     /// Should return the output bytes.
-    /// If `discard` is true, the implementation SHOULD still produce the output data in memory so it can be checksummed.
     fn run(&self, args: &Args, context: &mut dyn std::any::Any) -> Result<Vec<u8>>;
-
-    /// Called to verify the output against a reference.
-    /// This is only called if `verify` is true.
-    fn verify(&self, args: &Args, context: &dyn std::any::Any, output: &[u8]) -> Result<()>;
 }
 
 pub fn main<I: BenchmarkImplementation>(impl_: I) -> Result<()> {
@@ -101,68 +91,6 @@ pub fn main<I: BenchmarkImplementation>(impl_: I) -> Result<()> {
         } else if !output.is_empty() {
             fs::write(&args.output, &output).context("Failed to write output")?;
         }
-
-        if args.verify {
-            impl_
-                .verify(&args, context.as_ref(), &output)
-                .context("Verification failed")?;
-        }
-    }
-
-    Ok(())
-}
-
-pub fn calculate_psnr(a: &[u8], b: &[u8]) -> Result<f64> {
-    if a.len() != b.len() {
-        anyhow::bail!("Image dimensions/size mismatch: {} vs {}", a.len(), b.len());
-    }
-
-    let mut mse = 0.0;
-    for i in 0..a.len() {
-        let diff = a[i] as f64 - b[i] as f64;
-        mse += diff * diff;
-    }
-    mse /= a.len() as f64;
-
-    if mse == 0.0 {
-        return Ok(f64::INFINITY);
-    }
-
-    Ok(10.0 * (255.0 * 255.0 / mse).log10())
-}
-
-/// Verify output for lossless formats (exact byte match)
-pub fn verify_lossless(output: &[u8], reference: &[u8]) -> Result<()> {
-    if output.len() != reference.len() {
-        anyhow::bail!(
-            "Lossless verification failed: size mismatch ({} vs {} bytes)",
-            output.len(),
-            reference.len()
-        );
-    }
-
-    if output != reference {
-        // Find first difference for debugging
-        for (i, (a, b)) in output.iter().zip(reference.iter()).enumerate() {
-            if a != b {
-                anyhow::bail!(
-                    "Lossless verification failed: byte mismatch at offset {i} (0x{a:02x} vs 0x{b:02x})"
-                );
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Verify output for lossy formats (PSNR-based)
-pub fn verify_lossy(output: &[u8], reference: &[u8], threshold_db: f64) -> Result<()> {
-    let psnr = calculate_psnr(output, reference)?;
-
-    if psnr < threshold_db {
-        anyhow::bail!(
-            "Lossy verification failed: PSNR {psnr:.2} dB below threshold {threshold_db:.2} dB"
-        );
     }
 
     Ok(())

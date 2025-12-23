@@ -124,14 +124,6 @@ impl BenchmarkImplementation for Rav1eBench {
 
         Ok(output)
     }
-
-    fn verify(&self, _args: &Args, _context: &dyn std::any::Any, output: &[u8]) -> Result<()> {
-        // Basic verification: check that output is non-empty
-        if output.is_empty() {
-            anyhow::bail!("Encoder produced empty output");
-        }
-        Ok(())
-    }
 }
 
 fn main() -> Result<()> {

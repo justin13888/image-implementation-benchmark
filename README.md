@@ -75,8 +75,7 @@ Every encoder/decoder implementation is compiled into a standalone binary implem
   --iterations <int> \
   --warmup <int> \
   --threads <int> \
-  [--discard] \
-  [--verify]
+  [--discard]
 ```
 
 | Flag           | Description                                                                                                                       |
@@ -85,7 +84,6 @@ Every encoder/decoder implementation is compiled into a standalone binary implem
 | `--warmup`     | Number of untimed iterations to run before measurement (default: 2). Warms branch predictors, allocators, and caches.             |
 | `--threads`    | Number of threads to use. Use `1` for single-threaded benchmarks, `0` for "use all available cores".                              |
 | `--discard`    | Discard output instead of writing to disk. Computes a CRC32 checksum to prevent dead code elimination. Isolates compute from I/O. |
-| `--verify`     | (Decode only) After the timed loop, verify output correctness. See "Verification Strategy" below.                                 |
 
 #### Memory Allocation Strategy
 
@@ -102,23 +100,7 @@ Memory is allocated and freed inside each iteration to simulate realistic per-re
 
 #### Verification Strategy
 
-The `--verify` flag checks decoded output for correctness. Since different implementations may produce slightly different results (due to IDCT rounding, SIMD optimizations, or floating-point ordering), we use format-appropriate strategies:
-
-| Format Type                                     | Strategy                       | Threshold |
-| :---------------------------------------------- | :----------------------------- | :-------- |
-| **Lossless** (PNG, lossless WEBP, lossless JXL) | Exact byte match               | N/A       |
-| **Lossy** (JPEG, AVIF, lossy WEBP, lossy JXL)   | PSNR against reference decoder | ≥ 60dB    |
-
-**How it works:**
-
-1. Before the timed loop, the reference implementation decodes the image once and stores the result.
-2. After the timed loop completes, the test implementation's output is compared against this reference.
-3. For lossy formats, PSNR is computed. Values below 60dB indicate meaningful divergence (not just LSB rounding differences).
-4. Verification failures are logged with the measured PSNR value and the binary exits non-zero.
-
-**Note:** Verification adds overhead and runs outside the timed section. Use `--verify` during CI or validation runs, not during performance measurement.
-
-The threshold can be adjusted via `--verify-threshold <dB>` for formats or implementations with known acceptable divergence.
+The [benchmark harness](./bench) measures the visual similarity of the decoded output to the source based on the SSIMULACRA2 metric. While any choice of similarity metric is subject to bias, this is the validate that each benchmark implementation are producing output consistent to each other.
 
 #### Discard Checksum
 
@@ -224,19 +206,28 @@ This manifest is committed alongside results for full reproducibility.
 * CMake, Clang, and development libraries
 * ImageMagick, hyperfine, wget, unzip
 
-On Ubuntu/Debian:
+  On Ubuntu/Debian:
 
-```bash
-sudo apt install build-essential clang clang-format cmake ccache libmimalloc-dev \
-  libpng-dev libspng-dev libwebp-dev libavif-dev libdav1d-dev libjxl-dev \
-  pkg-config nasm imagemagick hyperfine wget unzip webp libavif-bin libjxl-tools
-```
+  ```bash
+  sudo apt install build-essential clang clang-format cmake ccache libmimalloc-dev \
+    libpng-dev libspng-dev libwebp-dev libavif-dev libdav1d-dev libjxl-dev \
+    pkg-config nasm imagemagick hyperfine wget unzip webp libavif-bin libjxl-tools
+  ```
 
-On macOS:
+  On macOS:
 
-```bash
-brew install clang-format cmake ccache mimalloc libpng libspng webp libavif dav1d jpeg-xl pkg-config nasm imagemagick hyperfine wget unzip
-```
+  ```bash
+  brew install clang-format cmake ccache mimalloc libpng libspng webp libavif dav1d jpeg-xl pkg-config nasm imagemagick hyperfine wget unzip
+  ```
+
+* Install forked ssimulacra2_rs that has PPM support:
+  
+  ```bash
+  # In any another directory
+  git clone https://github.com/justin13888/ssimulacra2.git
+  cd ssimulacra2/ssimulacra2_bin
+  cargo install --path . --no-default-features
+  ```
 
 ### Setup
 
@@ -285,9 +276,6 @@ Use `./bench run` with a dataset. Always specify `--dataset` (default `test` has
 
 # Discard output I/O (pure compute)
 ./bench run --dataset kodak --discard-output
-
-# With verification (slower)
-./bench run --dataset kodak --verify
 
 # Measure memory usage
 ./bench run --dataset div2k --measure-memory
@@ -374,6 +362,6 @@ We include modern formats and their most competitive implementations.
 
 Contributions are welcome!
 
-* **New Implementations:** Must implement the standard CLI defined in "Benchmarking Architecture", including `--warmup`, `--threads`, and `--verify` flags.
+* **New Implementations:** Must implement the standard CLI defined in "Benchmarking Architecture".
 * **Optimization:** If you find flags or methods that improve a specific implementation, open a PR with benchmark results and updated manifest.
 * **Image Sets:** Proposals for additional pathological or domain-specific test images are welcome.

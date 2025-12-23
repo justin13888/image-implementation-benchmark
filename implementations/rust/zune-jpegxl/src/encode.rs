@@ -61,13 +61,6 @@ impl BenchmarkImplementation for ZuneJxlBench {
         output.truncate(bytes_written);
         Ok(output)
     }
-
-    fn verify(&self, _args: &Args, _context: &dyn std::any::Any, output: &[u8]) -> Result<()> {
-        if output.is_empty() {
-            anyhow::bail!("Encoder produced empty output");
-        }
-        Ok(())
-    }
 }
 
 fn main() -> Result<()> {

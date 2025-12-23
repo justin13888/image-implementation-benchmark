@@ -73,8 +73,6 @@ class SpngEncodeBench : public BenchmarkImplementation {
     }
 
     // Map quality to compression level
-    // spng uses 0-9, where 0 is no compression, 9 is best compression.
-    // Default is usually 6.
     if (args.quality == "web-low") {
       compression_level = 1;  // Fast
     } else if (args.quality == "web-high") {
@@ -88,24 +86,10 @@ class SpngEncodeBench : public BenchmarkImplementation {
     spng_ctx *ctx = spng_ctx_new(SPNG_CTX_ENCODER);
     if (!ctx) throw std::runtime_error("spng_ctx_new failed");
 
-    // We need to encode to a buffer. spng_encode_image doesn't allocate for us
-    // if we want a vector? Actually spng_encode_image writes to the output set
-    // by spng_set_png_buffer or spng_set_png_stream. Wait, spng_set_png_buffer
-    // is for decoding? For encoding, we usually use spng_set_option with
-    // SPNG_ENCODE_TO_BUFFER? Or spng_set_png_stream with a custom write
-    // function.
-
-    // Let's use a custom write function to write to vector.
-    // spng_set_png_stream(ctx, write_fn, &output);
-
-    // Wait, libspng documentation says:
-    // "spng_set_png_stream() sets the output stream."
-
     struct MemBuf {
       std::vector<uint8_t> data;
     } output_buf;
 
-    // Reserve some space
     output_buf.data.reserve(input_data.size() / 2);
 
     int ret = spng_set_png_stream(
@@ -135,13 +119,6 @@ class SpngEncodeBench : public BenchmarkImplementation {
       throw std::runtime_error("spng_set_ihdr failed");
     }
 
-    // Set compression level
-    // SPNG_ENCODE_OPTION_IMG_COMPRESSION_LEVEL might not exist in older
-    // versions, but let's try. Actually, checking headers would be good.
-    // Assuming standard libspng 0.7.0+
-
-    // spng_set_option(ctx, SPNG_IMG_COMPRESSION_LEVEL, compression_level);
-
     ret = spng_encode_image(ctx, input_data.data(), input_data.size(),
                             SPNG_FMT_PNG, SPNG_ENCODE_FINALIZE);
 
@@ -153,17 +130,6 @@ class SpngEncodeBench : public BenchmarkImplementation {
 
     spng_ctx_free(ctx);
     return output_buf.data;
-  }
-
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    if (output.empty()) {
-      throw std::runtime_error("Encoder produced empty output");
-    }
-    // Check PNG signature
-    if (output.size() < 8 || output[0] != 0x89 || output[1] != 'P' ||
-        output[2] != 'N' || output[3] != 'G') {
-      throw std::runtime_error("Output is not a valid PNG");
-    }
   }
 
  private:

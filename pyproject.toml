@@ -11,6 +11,7 @@ dependencies = [
     "matplotlib>=3.7.5",
     "pydantic>=2.12.0",
     "tyro>=0.9.35",
+    "colorama>=0.4.6",
 ]
 
 [dependency-groups]

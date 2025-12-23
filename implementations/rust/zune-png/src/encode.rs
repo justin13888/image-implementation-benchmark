@@ -83,21 +83,6 @@ impl BenchmarkImplementation for ZunePngBench {
 
         Ok(output)
     }
-
-    fn verify(&self, _args: &Args, _context: &dyn std::any::Any, output: &[u8]) -> Result<()> {
-        if output.is_empty() {
-            anyhow::bail!("Encoder produced empty output");
-        }
-        if output.len() < 8
-            || output[0] != 0x89
-            || output[1] != b'P'
-            || output[2] != b'N'
-            || output[3] != b'G'
-        {
-            anyhow::bail!("Output is not a valid PNG");
-        }
-        Ok(())
-    }
 }
 
 fn main() -> Result<()> {

@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <vector>
 
@@ -39,10 +40,6 @@ class NullBench : public BenchmarkImplementation {
     }
 
     return output_buffer;
-  }
-
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    // No verification needed for null benchmark
   }
 };
 

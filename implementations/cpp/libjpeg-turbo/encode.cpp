@@ -142,17 +142,6 @@ class LibJpegTurboEncodeBench : public BenchmarkImplementation {
     return output;
   }
 
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    // Basic verification: check that output is non-empty and is valid JPEG
-    if (output.empty()) {
-      throw std::runtime_error("Encoder produced empty output");
-    }
-    if (output.size() < 2 || output[0] != 0xFF || output[1] != 0xD8) {
-      throw std::runtime_error(
-          "Output is not a valid JPEG (missing SOI marker)");
-    }
-  }
-
  private:
   std::vector<uint8_t> input_data;
   int width;

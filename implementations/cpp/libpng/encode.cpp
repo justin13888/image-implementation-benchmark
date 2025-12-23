@@ -1,4 +1,5 @@
 #include <png.h>
+#include <zlib.h>
 
 #include <cstring>
 #include <fstream>
@@ -117,17 +118,6 @@ class LibPngEncodeBench : public BenchmarkImplementation {
     png_destroy_write_struct(&png_ptr, &info_ptr);
 
     return output;
-  }
-
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    if (output.empty()) {
-      throw std::runtime_error("Encoder produced empty output");
-    }
-    // Check PNG signature
-    if (output.size() < 8 || output[0] != 0x89 || output[1] != 'P' ||
-        output[2] != 'N' || output[3] != 'G') {
-      throw std::runtime_error("Output is not a valid PNG");
-    }
   }
 
  private:

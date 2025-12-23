@@ -40,11 +40,6 @@ impl BenchmarkImplementation for NullEncodeBench {
 
         Ok(ctx.output_buffer.clone())
     }
-
-    fn verify(&self, _args: &Args, _context: &dyn std::any::Any, _output: &[u8]) -> Result<()> {
-        // No verification needed for null benchmark
-        Ok(())
-    }
 }
 
 fn main() -> Result<()> {

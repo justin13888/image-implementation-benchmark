@@ -101,6 +101,7 @@ name = "image-implementation-benchmark"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "colorama" },
     { name = "imagehash" },
     { name = "matplotlib" },
     { name = "numpy" },
@@ -117,6 +118,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "colorama", specifier = ">=0.4.6" },
     { name = "imagehash" },
     { name = "matplotlib", specifier = ">=3.7.5" },
     { name = "numpy" },

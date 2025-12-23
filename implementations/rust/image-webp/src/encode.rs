@@ -29,25 +29,12 @@ impl BenchmarkImplementation for ImageWebpBench {
         {
             let cursor = Cursor::new(&mut output);
             let mut writer = BufWriter::new(cursor);
-            // image-webp crate (used by image 0.24) is currently lossless only.
-            // We cannot set quality.
             ctx.img
-                .write_to(&mut writer, image::ImageFormat::WebP)
+                .write_to(&mut writer, image::ImageFormat::WebP) // TODO: image-webp seems to only support `encode_lossless`. This is issue to match benchmark specs. 
                 .context("Failed to encode WebP")?;
         }
 
         Ok(output)
-    }
-
-    fn verify(&self, _args: &Args, _context: &dyn std::any::Any, output: &[u8]) -> Result<()> {
-        if output.is_empty() {
-            anyhow::bail!("Encoder produced empty output");
-        }
-        // Check WebP signature (RIFF ... WEBP)
-        if output.len() < 12 || &output[0..4] != b"RIFF" || &output[8..12] != b"WEBP" {
-            anyhow::bail!("Output is not a valid WebP");
-        }
-        Ok(())
     }
 }
 
