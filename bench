@@ -1298,26 +1298,40 @@ class RunArgs(BaseModel):
     formats: Annotated[
         Optional[list[ImageFormat]],
         tyro.conf.EnumChoicesFromValues,
+        tyro.conf.arg(aliases=["-f"]),
         Field(description="List of formats to test."),
     ] = None
     dataset: Annotated[
         DatasetId,
         tyro.conf.EnumChoicesFromValues,
+        tyro.conf.arg(aliases=["-d"]),
         Field(description="Dataset to benchmark"),
     ] = DatasetId.TEST
     mode: Annotated[
         BenchmarkMode,
         tyro.conf.EnumChoicesFromValues,
+        tyro.conf.arg(aliases=["-m"]),
         Field(description="Benchmark mode"),
     ] = BenchmarkMode.BOTH
     threads: Annotated[
-        int, Field(ge=0, description="Number of threads (0 = all cores)")
+        int,
+        tyro.conf.arg(aliases=["-t"]),
+        Field(ge=0, description="Number of threads (0 = all cores)"),
     ] = 0
-    iterations: Annotated[int, Field(description="Iterations per benchmark")] = 10
-    warmup: Annotated[int, Field(description="Warmup iterations")] = 2
+    iterations: Annotated[
+        int,
+        tyro.conf.arg(aliases=["-i"]),
+        Field(description="Iterations per benchmark"),
+    ] = 10
+    warmup: Annotated[
+        int,
+        tyro.conf.arg(aliases=["-w"]),
+        Field(description="Warmup iterations"),
+    ] = 2
     quality: Annotated[
         Optional[QualityTier],
         tyro.conf.EnumChoicesFromValues,
+        tyro.conf.arg(aliases=["-q"]),
         Field(description="Quality tier"),
     ] = None
 
