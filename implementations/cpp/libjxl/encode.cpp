@@ -93,11 +93,11 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
     // Configure quality settings per README spec
     if (args.quality == "web-low") {
       distance = 4.0f;
-      effort = 7;
+      effort = 3;
       lossless = false;
     } else if (args.quality == "web-high") {
       distance = 1.0f;
-      effort = 7;
+      effort = 5;
       lossless = false;
     } else {  // archival
       distance = 0.0f;
