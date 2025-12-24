@@ -11,6 +11,8 @@ from enum import Enum
 import subprocess
 import os
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import datetime
 import json
 import platform
@@ -39,6 +41,15 @@ import humanize
 import secrets
 
 init(autoreset=True)
+
+# Use this lock to ensure only one thread writes to the console at a time
+print_lock = threading.Lock()
+
+
+def safe_print(message):
+    """Prints a message safely across multiple threads."""
+    with print_lock:
+        print(message)
 
 
 def generate_base32_string(length: int) -> str:
@@ -686,51 +697,52 @@ def build_rust_project(impl: Implementation):
     )
 
 
-def build_cpp_project(impl: Implementation):
-    """
-    Build a C++ project.
-
-    Assumes the project language is C++.
-    """
+def build_cpp_project(impl):
+    """Build a C++ project with thread-safe logging."""
     assert impl.lang == "cpp", "build_cpp_project() called with non-C++ project"
 
     bin_path = impl.bin
     build_dir = os.path.dirname(bin_path)
 
-    print(f"  Building {impl.name}...")
-    os.makedirs(build_dir, exist_ok=True)
+    # Use a prefix so the user can track which thread is doing what
+    prefix = f"[{impl.name}]".ljust(15)
 
-    # 1. Configure with CMake
-    run_build_command(
-        [
-            "cmake",
-            "..",
-            "-DCMAKE_BUILD_TYPE=Release",
-            "-D",
-            "CMAKE_C_COMPILER_LAUNCHER=ccache",
-            "-D",
-            "CMAKE_CXX_COMPILER_LAUNCHER=ccache",
-        ],
-        cwd=build_dir,
-        step_name=f"{impl.name} (CMake Configuration)",
-    )
+    safe_print(f"{Fore.CYAN}{prefix} Starting build...")
 
-    # 2. Build with Make
-    run_build_command(
-        ["make", "-j"],
-        cwd=build_dir,
-        step_name=f"{impl.name} (Make Compilation)",
-    )
+    try:
+        os.makedirs(build_dir, exist_ok=True)
 
-    # 3. Verify binary was created
-    if not os.path.exists(bin_path):
-        print(f"{Fore.RED}    ✗ {impl.name} - binary not found at {bin_path}")
-        print(f"{Fore.RED}\n✗ Build failed for {impl.name} (File missing)")
-        sys.exit(1)
-    else:
-        print(f"{Fore.GREEN}    ✓ {impl.name}")
+        # 1. Configure with CMake
+        run_build_command(
+            [
+                "cmake",
+                "..",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_C_COMPILER_LAUNCHER=ccache",
+                "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
+            ],
+            cwd=build_dir,
+            step_name=f"{impl.name} (CMake)",
+        )
 
-    return True
+        # 2. Build with Make
+        run_build_command(
+            ["make", "-j"],
+            cwd=build_dir,
+            step_name=f"{impl.name} (Make)",
+        )
+
+        # 3. Verify
+        if not os.path.exists(bin_path):
+            safe_print(f"{Fore.RED}{prefix} ✗ Binary not found: {bin_path}")
+            return False
+        else:
+            safe_print(f"{Fore.GREEN}{prefix} ✓ Build complete.")
+            return True
+
+    except Exception as e:
+        safe_print(f"{Fore.RED}{prefix} ✗ Build failed: {str(e)}")
+        return False
 
 
 def build_projects(formats: list[ImageFormat]):
@@ -752,15 +764,24 @@ def build_projects(formats: list[ImageFormat]):
     # Build C++ projects
     print(f"{Fore.BLUE}\n[2/2] Building C++ projects...")
 
+    to_build = []
     for fmt in formats:
         for impl in chain(
             NULL_IMPLEMENTATIONS,
             (impl for impl in IMPLEMENTATIONS if impl.format == fmt),
         ):
-            if impl.lang != "cpp":
-                continue
+            if impl.lang == "cpp":
+                to_build.append(impl)
+    print(f"{Fore.YELLOW}Starting 3 simultaneous C++ builds...\n")
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        results = list(executor.map(build_cpp_project, to_build))
 
-            build_cpp_project(impl)
+    # Check results
+    if all(results):
+        print(f"\n{Fore.GREEN}All C++ builds succeeded.")
+    else:
+        print(f"\n{Fore.RED}Some C++ builds failed.")
+        sys.exit(1)
 
     print("\n✓ Build phase complete\n")
 
