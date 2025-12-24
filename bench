@@ -229,6 +229,13 @@ IMPLEMENTATIONS: list[Implementation] = [
         format=ImageFormat.JPEG,
     ),
     Implementation(
+        name="image-jpeg-encode",
+        lang="rust",
+        bin="target/release/bench-image-jpeg-encode",
+        type=BenchmarkType.ENCODE,
+        format=ImageFormat.JPEG,
+    ),
+    Implementation(
         name="libjpeg-turbo-decode",
         lang="cpp",
         bin="implementations/cpp/libjpeg-turbo/build/bench-libjpeg-turbo-decode",
