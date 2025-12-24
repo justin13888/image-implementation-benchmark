@@ -1085,8 +1085,8 @@ class BenchmarkMetrics(TypedDict):
     error: Optional[str] = None
 
 
-def collect_metrics(benches: BenchList, result_dir: str):
-    """Collect file size and visual quality metrics."""
+def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetrics]:
+    """Generate file size and visual quality metrics."""
     print(f"{Fore.BLUE}{'=' * 70}\nCOLLECTING METRICS\n{'=' * 70}\n")
 
     # Create temporary directory to save images to
@@ -1190,12 +1190,8 @@ def collect_metrics(benches: BenchList, result_dir: str):
                     error=str(e),
                 )
             )
-    # Save metrics
-    metrics_path = f"{result_dir}/metrics.json"
-    with open(metrics_path, "w") as f:
-        json.dump(metrics, f, indent=2)
 
-    print(f"\n✓ Metrics saved to {metrics_path}")
+    return metrics
 
 
 def run(args: RunArgs):
@@ -1347,12 +1343,18 @@ def run(args: RunArgs):
             print(f"Test command: {' '.join(hyperfine_cmd)}")
             sys.exit(1)
 
-        # Generate summary
-        generate_summary(result_dir, json_output)
-
     # Collect metrics
     if not args.no_metrics:
-        collect_metrics(benches, result_dir)
+        metrics = generate_metrics(benches, result_dir)
+        # Save metrics
+        metrics_path = f"{result_dir}/metrics.json"
+        with open(metrics_path, "w") as f:
+            json.dump(metrics, f, indent=2)
+
+        print(f"\n✓ Metrics saved to {metrics_path}")
+
+    # Generate summary
+    generate_summary(result_dir, json_output)
 
     # Measure memory if requested
     if args.measure_memory:
@@ -1557,7 +1559,9 @@ def create_plots_from_parsed_results(
     return plots
 
 
-def generate_summary(result_dir: str, raw_json_path: str):
+def generate_summary(
+    result_dir: str, raw_json_path: str, metrics: list[BenchmarkMetrics]
+):
     """Generate summary.md from hyperfine results."""
     try:
         with open(raw_json_path) as f:
@@ -1661,6 +1665,9 @@ def generate_summary(result_dir: str, raw_json_path: str):
                 )
         else:
             f.write("No plots generated.\n")
+
+        # f.write ("\n## Metrics\n")
+        # f.write("")
 
     print(f"\n✓ Summary written to {summary_path}")
 
