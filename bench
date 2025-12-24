@@ -1579,6 +1579,7 @@ def generate_summary(
     metrics: Optional[list[BenchmarkMetrics]],
 ):
     """Generate summary.md from hyperfine results."""
+    summary_path = f"{result_dir}/summary.md"
     try:
         # Create an in-memory buffer
         buffer = io.StringIO()
@@ -1691,11 +1692,29 @@ def generate_summary(
 
         # Process metrics if available
         if metrics is not None:
-            buffer.write("\n## Metrics\n")
-            buffer.write(metrics)  # TODO: convert metrics into markdown
+            buffer.write("\n## Metrics\n\n")
+            buffer.write(
+                "| Implementation | Quality | Input File | File Size | SSIMULACRA 2 | Status |\n"
+            )
+            buffer.write(
+                "|----------------|---------|------------|-----------|--------------|--------|\n"
+            )
+            for m in metrics:
+                impl_name = m["impl"]
+                quality = m["quality"]
+                input_file = os.path.basename(m["input_path"])
+                filesize = (
+                    humanize.naturalsize(m["filesize"], binary=True)
+                    if m["filesize"] > 0
+                    else "N/A"
+                )
+                ssim_score = m["ssimulacra2"]
+                status = "✗ " + m["error"][:30] + "..." if m.get("error") else "✓"
+                buffer.write(
+                    f"| {impl_name} | {quality} | {input_file} | {filesize} | {ssim_score} | {status} |\n"
+                )
 
         # Write buffer to file
-        summary_path = f"{result_dir}/summary.md"
         with open(summary_path, "w") as f:
             f.write(buffer.getvalue())
         print(f"\n✓ Summary written to {summary_path}")
