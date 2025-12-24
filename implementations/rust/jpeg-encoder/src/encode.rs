@@ -7,6 +7,8 @@ struct JpegEncoderBench;
 struct BenchContext {
     quality: u8,
     is_progressive: bool,
+    width: u16,
+    height: u16,
     rgb8_img: Vec<u8>,
 }
 
@@ -32,6 +34,8 @@ impl BenchmarkImplementation for JpegEncoderBench {
         Ok(Box::new(BenchContext {
             quality,
             is_progressive,
+            width: img.width() as u16,
+            height: img.height() as u16,
             rgb8_img: img.to_rgb8().to_vec(),
         }))
     }
@@ -45,7 +49,7 @@ impl BenchmarkImplementation for JpegEncoderBench {
         let mut encoder = Encoder::new(&mut output, ctx.quality);
         encoder.set_progressive(ctx.is_progressive);
         encoder
-            .encode(&ctx.rgb8_img, 2, 2, ColorType::Rgb)
+            .encode(&ctx.rgb8_img, ctx.width, ctx.height, ColorType::Rgb)
             .context("Failed to encode image")?;
 
         Ok(output)
