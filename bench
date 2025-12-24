@@ -1039,7 +1039,6 @@ def build_bench_list(
     format: ImageFormat,
     dataset: DatasetId,
     quality: QualityTier,
-    outputs_dir: str,
     args: RunArgs,
 ) -> BenchList:
     """Construct list of benchmark commands to run."""
@@ -1257,10 +1256,6 @@ def run(args: RunArgs):
 
     print(f"\n✓ Manifest written to {result_dir}/manifest.json")
 
-    outputs_dir = os.path.join(result_dir, "outputs")
-    os.makedirs(outputs_dir, exist_ok=True)
-    print(f"✓ Outputs directory created at {outputs_dir}")
-
     benches: BenchList = []
     quality = args.get_quality()
     for format in formats:
@@ -1271,7 +1266,6 @@ def run(args: RunArgs):
                     format,
                     args.dataset,
                     quality,
-                    outputs_dir,
                     args,
                 )
             case BenchmarkMode.DECODE:
@@ -1280,7 +1274,6 @@ def run(args: RunArgs):
                     format,
                     args.dataset,
                     quality,
-                    outputs_dir,
                     args,
                 )
             case BenchmarkMode.BOTH:
@@ -1289,7 +1282,6 @@ def run(args: RunArgs):
                     format,
                     args.dataset,
                     quality,
-                    outputs_dir,
                     args,
                 )
                 benches += build_bench_list(
@@ -1297,7 +1289,6 @@ def run(args: RunArgs):
                     format,
                     args.dataset,
                     quality,
-                    outputs_dir,
                     args,
                 )
             case _:
