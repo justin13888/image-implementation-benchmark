@@ -307,12 +307,13 @@ We include modern formats and their most competitive implementations.
 
 ### JPEG
 
-| Implementation    | Language | Notes                                                                                                          |
-| :---------------- | :------- | :------------------------------------------------------------------------------------------------------------- |
-| **libjpeg-turbo** | C        | Industry standard, SIMD-optimized                                                                              |
-| **mozjpeg**       | C        | *Optimized for compression ratio, not speed.* Included for completeness; expect slower encode times by design. |
-| **jpeg-decoder**  | Rust     | Pure Rust                                                                                                      |
-| **zune-jpeg**     | Rust     | Highly optimized pure Rust                                                                                     |
+| Implementation    | Language | Notes                                                                                                                       |
+| :---------------- | :------- | :-------------------------------------------------------------------------------------------------------------------------- |
+| **libjpeg-turbo** | C        | Industry standard, SIMD-optimized                                                                                           |
+| **mozjpeg**       | C        | *Optimized for compression ratio, not speed.* Included for completeness; expect slower encode times by design.              |
+| **jpeg-decoder**  | Rust     | Pure Rust JPEG decoder used in [image-rs](https://github.com/image-rs/image)                                                |
+| **zune-jpeg**     | Rust     | Pure-Rust JPEG decoder used in [zune-image](https://github.com/etemesi254/zune-image)                                       |
+| **jpeg-encoder**  | Rust     | Pure-Rust JPEG encoder used in [zune-image](https://github.com/etemesi254/zune-image). AVX2 (SIMD) feature flag is enabled. |
 
 ### PNG
 

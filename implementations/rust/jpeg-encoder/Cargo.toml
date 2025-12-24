@@ -1,0 +1,14 @@
+[package]
+name = "bench-jpeg-encoder"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bench-jpeg-encoder-encode"
+path = "src/encode.rs"
+
+[dependencies]
+benchmark-harness = { path = "../../../harness/rust" }
+image = { version = "0.25.9", default-features = false, features = ["pnm"] }
+jpeg-encoder = { version = "0.6.1", features = ["simd"] }
+anyhow = "1.0"
