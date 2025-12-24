@@ -74,15 +74,12 @@ class LibJpegTurboEncodeBench : public BenchmarkImplementation {
     if (args.quality == "web-low") {
       quality = 50;
       progressive = false;
-      subsample = JDCT_ISLOW;
     } else if (args.quality == "web-high") {
       quality = 80;
       progressive = true;
-      subsample = JDCT_ISLOW;
     } else {  // archival
       quality = 95;
       progressive = false;
-      subsample = JDCT_FLOAT;
     }
   }
 
@@ -148,7 +145,6 @@ class LibJpegTurboEncodeBench : public BenchmarkImplementation {
   int height;
   int quality;
   bool progressive;
-  J_DCT_METHOD subsample;
 };
 
 int main(int argc, char **argv) {

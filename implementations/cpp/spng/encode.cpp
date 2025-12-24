@@ -72,14 +72,9 @@ class SpngEncodeBench : public BenchmarkImplementation {
       input_data.resize(expected_size);
     }
 
-    // Map quality to compression level
-    if (args.quality == "web-low") {
-      compression_level = 1;  // Fast
-    } else if (args.quality == "web-high") {
-      compression_level = 6;  // Default
-    } else {                  // archival
-      compression_level = 9;  // Best
-    }
+    // TODO: SPNG encoder API does not expose compression level control.
+    // Quality tiers cannot be differentiated for PNG encoding with SPNG.
+    // Consider using libpng for quality-controlled PNG encoding.
   }
 
   std::vector<uint8_t> run(const Args &args) override {
@@ -136,7 +131,6 @@ class SpngEncodeBench : public BenchmarkImplementation {
   std::vector<uint8_t> input_data;
   uint32_t width;
   uint32_t height;
-  int compression_level;
 };
 
 int main(int argc, char **argv) {

@@ -30,6 +30,9 @@ class LibJxlBench : public BenchmarkImplementation {
 
  private:
   std::vector<uint8_t> decode(const std::vector<uint8_t> &data) {
+    // TODO: Consider moving JxlResizableParallelRunnerMake to prepare() for
+    // better performance. Requires verifying the runner can be safely reused
+    // across multiple decode() calls with fresh decoders.
     auto runner = JxlResizableParallelRunnerMake(nullptr);
     auto dec = JxlDecoderMake(nullptr);
 

@@ -124,13 +124,16 @@ impl BenchmarkImplementation for Rav1eBench {
             }
         }
 
+        // TODO: Verify avif_serialize produces valid AVIF files.
+        // The raw AV1 bitstream from rav1e needs proper ISOBMFF container wrapping.
+        // Test output files with `avifenc --info` or similar tools.
         let output = avif_serialize::serialize_to_vec(
             &encoded_data,
             None,
             ctx.width as u32,
             ctx.height as u32,
             8,
-        ); // TODO: Fix serialization
+        );
 
         Ok(output)
     }

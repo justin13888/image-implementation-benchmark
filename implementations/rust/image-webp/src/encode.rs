@@ -31,8 +31,10 @@ impl BenchmarkImplementation for ImageWebpBench {
         {
             let cursor = Cursor::new(&mut output);
             let mut writer = BufWriter::new(cursor);
+            // TODO: image-webp crate only supports lossless encoding as of writing.
+            // This means quality tiers (web-low, web-high) are not respected.
             ctx.img
-                .write_to(&mut writer, image::ImageFormat::WebP) // TODO: image-webp seems to only support `encode_lossless`. This is issue to match benchmark specs.
+                .write_to(&mut writer, image::ImageFormat::WebP)
                 .context("Failed to encode WebP")?;
         }
 
