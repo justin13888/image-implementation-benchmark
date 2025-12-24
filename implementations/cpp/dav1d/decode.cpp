@@ -57,11 +57,31 @@ class Dav1dBench : public BenchmarkImplementation {
       throw std::runtime_error("avifDecoderNextImage failed");
     }
 
-    // We have YUV in decoder->image.
-    // Just copying the Y plane for now.
-    size_t size = decoder->image->yuvRowBytes[0] * decoder->image->height;
-    std::vector<uint8_t> output(size);
-    memcpy(output.data(), decoder->image->yuvPlanes[0], size);
+    // Convert to RGB
+    avifRGBImage rgb;
+    avifRGBImageSetDefaults(&rgb, decoder->image);
+    rgb.format = AVIF_RGB_FORMAT_RGB;
+    rgb.depth = 8;
+
+    avifRGBImageAllocatePixels(&rgb);
+    avifResult conversionResult = avifImageYUVToRGB(decoder->image, &rgb);
+    if (conversionResult != AVIF_RESULT_OK) {
+      avifRGBImageFreePixels(&rgb);
+      throw std::runtime_error("avifImageYUVToRGB failed");
+    }
+
+    std::string header = "P6\n" + std::to_string(rgb.width) + " " +
+                         std::to_string(rgb.height) + "\n255\n";
+    std::vector<uint8_t> output;
+    output.reserve(header.size() + rgb.width * rgb.height * 3);
+    output.insert(output.end(), header.begin(), header.end());
+
+    for (uint32_t y = 0; y < rgb.height; ++y) {
+      uint8_t *row = rgb.pixels + (y * rgb.rowBytes);
+      output.insert(output.end(), row, row + (rgb.width * 3));
+    }
+
+    avifRGBImageFreePixels(&rgb);
 
     return output;
   }

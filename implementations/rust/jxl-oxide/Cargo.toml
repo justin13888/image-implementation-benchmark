@@ -9,6 +9,6 @@ path = "src/decode.rs"
 
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }
-jxl-oxide = "0.12"
+jxl-oxide = { version = "0.12", features = ["image"] }
 anyhow = "1.0"
-image = "0.25.9"
+image = { version = "0.25.9", default-features = false, features = ["pnm"] }

@@ -25,8 +25,20 @@ impl BenchmarkImplementation for ZuneJpegBench {
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
         let mut decoder = JpegDecoder::new(std::io::Cursor::new(&ctx.input_data));
+        decoder
+            .decode_headers()
+            .context("Failed to decode headers")?;
+        let (w, h) = decoder
+            .dimensions()
+            .ok_or_else(|| anyhow::anyhow!("Failed to get dimensions"))?;
         let pixels = decoder.decode().context("Failed to decode JPEG")?;
-        Ok(pixels)
+
+        // Output as PPM
+        let mut output = Vec::with_capacity(20 + pixels.len());
+        use std::io::Write;
+        write!(&mut output, "P6\n{} {}\n255\n", w, h)?;
+        output.write_all(&pixels)?;
+        Ok(output)
     }
 }
 

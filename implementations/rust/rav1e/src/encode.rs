@@ -18,7 +18,9 @@ impl BenchmarkImplementation for Rav1eBench {
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         // Load the raw image data (PPM format expected)
-        let img = image::open(&args.input).context("Failed to open input image")?;
+        let input_data = std::fs::read(&args.input).context("Failed to read input file")?;
+        let img = image::load_from_memory_with_format(&input_data, image::ImageFormat::Pnm)
+            .context("Failed to decode input PPM")?;
         let width = img.width() as usize;
         let height = img.height() as usize;
         let rgb_data = img.to_rgb8().into_raw();
@@ -111,16 +113,24 @@ impl BenchmarkImplementation for Rav1eBench {
         enc_ctx.send_frame(frame).context("Failed to send frame")?;
         enc_ctx.flush();
 
-        let mut output = Vec::new();
+        let mut encoded_data = Vec::new();
         loop {
             match enc_ctx.receive_packet() {
                 Ok(pkt) => {
-                    output.extend_from_slice(&pkt.data);
+                    encoded_data.extend_from_slice(&pkt.data);
                 }
                 Err(EncoderStatus::Encoded) | Err(EncoderStatus::LimitReached) => break,
                 Err(e) => anyhow::bail!("Encoding error: {e:?}"),
             }
         }
+
+        let output = avif_serialize::serialize_to_vec(
+            &encoded_data,
+            None,
+            ctx.width as u32,
+            ctx.height as u32,
+            8,
+        ); // TODO: Fix serialization
 
         Ok(output)
     }

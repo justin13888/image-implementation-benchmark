@@ -14,7 +14,9 @@ impl BenchmarkImplementation for ImageWebpBench {
     }
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
-        let img = image::open(&args.input).context("Failed to open input image")?;
+        let input_data = std::fs::read(&args.input).context("Failed to read input file")?;
+        let img = image::load_from_memory_with_format(&input_data, image::ImageFormat::Pnm)
+            .context("Failed to decode input PPM")?;
         let img = image::DynamicImage::ImageRgb8(img.to_rgb8());
         Ok(Box::new(BenchContext { img }))
     }
@@ -30,7 +32,7 @@ impl BenchmarkImplementation for ImageWebpBench {
             let cursor = Cursor::new(&mut output);
             let mut writer = BufWriter::new(cursor);
             ctx.img
-                .write_to(&mut writer, image::ImageFormat::WebP) // TODO: image-webp seems to only support `encode_lossless`. This is issue to match benchmark specs. 
+                .write_to(&mut writer, image::ImageFormat::WebP) // TODO: image-webp seems to only support `encode_lossless`. This is issue to match benchmark specs.
                 .context("Failed to encode WebP")?;
         }
 

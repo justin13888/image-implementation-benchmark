@@ -53,7 +53,7 @@ class LibAvifBench : public BenchmarkImplementation {
     // Convert to RGB
     avifRGBImage rgb;
     avifRGBImageSetDefaults(&rgb, decoder->image);
-    rgb.format = AVIF_RGB_FORMAT_RGBA;
+    rgb.format = AVIF_RGB_FORMAT_RGB;
     rgb.depth = 8;
 
     avifRGBImageAllocatePixels(&rgb);
@@ -64,8 +64,18 @@ class LibAvifBench : public BenchmarkImplementation {
       throw std::runtime_error("avifImageYUVToRGB failed");
     }
 
-    std::vector<uint8_t> output(rgb.pixels,
-                                rgb.pixels + rgb.rowBytes * rgb.height);
+    // Prepare PPM header
+    std::string header = "P6\n" + std::to_string(rgb.width) + " " +
+                         std::to_string(rgb.height) + "\n255\n";
+    std::vector<uint8_t> output;
+    output.reserve(header.size() + rgb.width * rgb.height * 3);
+    output.insert(output.end(), header.begin(), header.end());
+
+    // Copy pixels packed
+    for (uint32_t y = 0; y < rgb.height; ++y) {
+      uint8_t *row = rgb.pixels + (y * rgb.rowBytes);
+      output.insert(output.end(), row, row + (rgb.width * 3));
+    }
 
     avifRGBImageFreePixels(&rgb);
     avifDecoderDestroy(decoder);

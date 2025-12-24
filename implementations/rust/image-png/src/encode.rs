@@ -17,9 +17,11 @@ impl BenchmarkImplementation for ImagePngBench {
         "image-png-encode"
     }
 
-    fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {// Load input image (PPM)
+    fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         // Load input image (PPM)
-        let img = image::open(&args.input).context("Failed to open input image")?;
+        let input_data = std::fs::read(&args.input).context("Failed to read input file")?;
+        let img = image::load_from_memory_with_format(&input_data, image::ImageFormat::Pnm)
+            .context("Failed to decode input PPM")?;
         let img = image::DynamicImage::ImageRgb8(img.to_rgb8());
 
         // Map quality to compression

@@ -29,17 +29,24 @@ class LibWebpBench : public BenchmarkImplementation {
   std::vector<uint8_t> decode(const std::vector<uint8_t> &data) {
     int width, height;
     uint8_t *output_buffer =
-        WebPDecodeRGBA(data.data(), data.size(), &width, &height);
+        WebPDecodeRGB(data.data(), data.size(), &width, &height);
 
     if (output_buffer == nullptr) {
-      throw std::runtime_error("WebPDecodeRGBA failed");
+      throw std::runtime_error("WebPDecodeRGB failed");
     }
 
     std::vector<uint8_t> output(output_buffer,
-                                output_buffer + width * height * 4);
+                                output_buffer + width * height * 3);
     WebPFree(output_buffer);
 
-    return output;
+    std::string header = "P6\n" + std::to_string(width) + " " +
+                         std::to_string(height) + "\n255\n";
+    std::vector<uint8_t> final_output;
+    final_output.reserve(header.size() + output.size());
+    final_output.insert(final_output.end(), header.begin(), header.end());
+    final_output.insert(final_output.end(), output.begin(), output.end());
+
+    return final_output;
   }
 
   std::vector<uint8_t> input_data;

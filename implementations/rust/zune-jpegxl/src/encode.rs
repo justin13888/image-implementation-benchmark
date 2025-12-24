@@ -21,7 +21,9 @@ impl BenchmarkImplementation for ZuneJxlBench {
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         // Load raw image
-        let img = image::open(&args.input).context("Failed to open input image")?;
+        let input_data = std::fs::read(&args.input).context("Failed to read input file")?;
+        let img = image::load_from_memory_with_format(&input_data, image::ImageFormat::Pnm)
+            .context("Failed to decode input PPM")?;
         let width = img.width() as usize;
         let height = img.height() as usize;
         let input_data = img.to_rgb8().into_raw();

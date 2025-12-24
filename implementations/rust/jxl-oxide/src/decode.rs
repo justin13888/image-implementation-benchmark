@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use benchmark_harness::{Args, BenchmarkImplementation};
-use jxl_oxide::JxlImage;
+use image::DynamicImage;
+use jxl_oxide::integration::JxlDecoder;
 use std::fs;
 use std::io::Cursor;
 
@@ -25,17 +26,19 @@ impl BenchmarkImplementation for JxlOxideBench {
         let ctx = context
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
-        let image = JxlImage::builder()
-            .read(Cursor::new(&ctx.input_data))
-            .map_err(|e| anyhow::anyhow!("Failed to read JXL header: {e}"))?;
-        let _render = image
-            .render_frame(0)
-            .map_err(|e| anyhow::anyhow!("Failed to render frame: {e}"))?;
+        let decoder = JxlDecoder::new(Cursor::new(&ctx.input_data))?;
+        let img = DynamicImage::from_decoder(decoder)?;
 
-        // We need to return bytes.
-        // render.image() returns a grid.
-        // For benchmarking, the decoding time is what matters.
-        Ok(Vec::new()) // TODO: Return actual pixels needed for verification later
+        // Note we skip obtaining ICC profile and applying colour transform.
+
+        // Output as PPM
+        let rgb = img.to_rgb8();
+        let mut output = Vec::with_capacity(15 + rgb.len()); // Header + Data
+        use std::io::Write;
+        write!(&mut output, "P6\n{} {}\n255\n", rgb.width(), rgb.height())?;
+        output.write_all(&rgb)?;
+
+        Ok(output)
     }
 }
 

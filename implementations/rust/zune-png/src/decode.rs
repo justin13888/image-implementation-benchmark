@@ -25,17 +25,32 @@ impl BenchmarkImplementation for ZunePngBench {
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
         let mut decoder = PngDecoder::new(std::io::Cursor::new(&ctx.input_data));
+
+        decoder
+            .decode_headers()
+            .context("Failed to decode headers")?;
+        let (w, h) = decoder
+            .dimensions()
+            .ok_or_else(|| anyhow::anyhow!("Failed to get dimensions"))?;
+
         let pixels = decoder.decode().context("Failed to decode PNG")?;
 
+        use std::io::Write;
+
         match pixels {
-            zune_png::zune_core::result::DecodingResult::U8(data) => Ok(data),
+            zune_png::zune_core::result::DecodingResult::U8(data) => {
+                let mut output = Vec::with_capacity(20 + data.len());
+                write!(&mut output, "P6\n{} {}\n255\n", w, h)?;
+                output.write_all(&data)?;
+                Ok(output)
+            }
             zune_png::zune_core::result::DecodingResult::U16(data) => {
-                // TODO: Check if there's performance issues with this conversion.
-                let mut bytes = Vec::with_capacity(data.len() * 2);
+                let mut output = Vec::with_capacity(20 + data.len() * 2);
+                write!(&mut output, "P6\n{} {}\n65535\n", w, h)?;
                 for val in data {
-                    bytes.extend_from_slice(&val.to_ne_bytes());
+                    output.write_all(&val.to_be_bytes())?;
                 }
-                Ok(bytes)
+                Ok(output)
             }
             _ => anyhow::bail!("Unsupported pixel format"),
         }
