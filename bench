@@ -1303,6 +1303,7 @@ def run(args: RunArgs):
         print()
 
         json_output = f"{result_dir}/raw.json"
+        hyperfine_cmd: list[str]
         if not args.quick:
             hyperfine_cmd = [
                 "hyperfine",
@@ -1328,7 +1329,7 @@ def run(args: RunArgs):
 
         # Add command names for better output
         for task in benches:
-            hyperfine_cmd.extend(["--command-name", task.name])
+            hyperfine_cmd.extend(["--command-name", task.name()])
 
         hyperfine_cmd.extend([task.cmd("/dev/null") for task in benches])
 
