@@ -13,6 +13,6 @@ path = "src/encode.rs"
 
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }
-image = "0.25.9"
+image = { version = "0.25.9", default-features = false, features = ["webp", "pnm"] }
 image-webp = "0.2.4"
 anyhow = "1.0"
