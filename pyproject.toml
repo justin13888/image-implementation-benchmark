@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.12.0",
     "tyro>=0.9.35",
     "colorama>=0.4.6",
+    "humanize>=4.15.0",
 ]
 
 [dependency-groups]

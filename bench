@@ -35,7 +35,7 @@ from itertools import chain
 import traceback
 import csv
 import re
-
+import humanize
 import secrets
 
 init(autoreset=True)
@@ -1131,7 +1131,9 @@ def collect_metrics(benches: BenchList, result_dir: str):
             else:
                 raise ValueError(f"Unable to parse SSIMULACRA 2 output: `{out_str}`")
 
-            print(f"{Fore.GREEN}✓ Size: {filesize:,} B, Score: {score:.2f}")
+            print(
+                f"{Fore.GREEN}✓ Size: {humanize.naturalsize(filesize, binary=True)}, Score: {score:.2f}"
+            )
 
             metrics.append(
                 BenchmarkMetrics(
