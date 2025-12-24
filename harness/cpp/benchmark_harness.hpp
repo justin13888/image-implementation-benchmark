@@ -93,6 +93,74 @@ inline std::vector<uint8_t> encode_ppm_rgb16(
   return output;
 }
 
+struct RGBImage {
+  int width;
+  int height;
+  std::vector<uint8_t> data;
+};
+
+inline RGBImage decode_ppm_rgb8(const std::string& input_path) {
+  std::ifstream file(input_path, std::ios::binary | std::ios::ate);
+  if (!file)
+    throw std::runtime_error("Failed to open input file: " + input_path);
+  std::streamsize size = file.tellg();
+  file.seekg(0, std::ios::beg);
+  std::vector<char> buffer(size);
+  if (!file.read(buffer.data(), size))
+    throw std::runtime_error("Failed to read input file");
+
+  const char* data = buffer.data();
+  if (buffer.size() < 3 || data[0] != 'P' || data[1] != '6') {
+    throw std::runtime_error("Input must be PPM P6 format");
+  }
+
+  size_t pos = 3;
+  // Skip whitespace
+  while (pos < buffer.size() &&
+         (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
+    pos++;
+
+  // Skip comments
+  while (pos < buffer.size() && data[pos] == '#') {
+    while (pos < buffer.size() && data[pos] != '\n') pos++;
+    pos++;
+  }
+
+  int width = 0;
+  while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
+    width = width * 10 + (data[pos] - '0');
+    pos++;
+  }
+  while (pos < buffer.size() &&
+         (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
+    pos++;
+
+  int height = 0;
+  while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
+    height = height * 10 + (data[pos] - '0');
+    pos++;
+  }
+
+  // Skip max value
+  while (pos < buffer.size() &&
+         (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
+    pos++;
+  while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') pos++;
+  while (pos < buffer.size() &&
+         (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
+    pos++;
+
+  std::vector<uint8_t> rgb_data(
+      reinterpret_cast<const uint8_t*>(data + pos),
+      reinterpret_cast<const uint8_t*>(data + buffer.size()));
+
+  if (rgb_data.size() < static_cast<size_t>(width) * height * 3) {
+    throw std::runtime_error("Insufficient pixel data in PPM file");
+  }
+
+  return {width, height, rgb_data};
+}
+
 inline Args parse_args(int argc, char** argv) {
   Args args;
   for (int i = 1; i < argc; ++i) {

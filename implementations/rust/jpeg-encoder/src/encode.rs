@@ -18,9 +18,7 @@ impl BenchmarkImplementation for JpegEncoderBench {
     }
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
-        let input_data = std::fs::read(&args.input).context("Failed to read input file")?;
-        let img = image::load_from_memory_with_format(&input_data, image::ImageFormat::Pnm)
-            .context("Failed to decode input PPM")?;
+        let (width, height, rgb8_img) = benchmark_harness::decode_ppm_rgb8(&args.input)?;
         let quality = match args.quality {
             Quality::WebLow => 50,
             Quality::WebHigh => 80,
@@ -34,9 +32,9 @@ impl BenchmarkImplementation for JpegEncoderBench {
         Ok(Box::new(BenchContext {
             quality,
             is_progressive,
-            width: img.width() as u16,
-            height: img.height() as u16,
-            rgb8_img: img.to_rgb8().to_vec(),
+            width: width as u16,
+            height: height as u16,
+            rgb8_img,
         }))
     }
 

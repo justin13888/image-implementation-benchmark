@@ -8,7 +8,8 @@ struct BenchContext {
     width: usize,
     height: usize,
     rgb_data: Vec<u8>,
-    quality: Quality,
+    quantizer: usize,
+    speed: u8,
 }
 
 impl BenchmarkImplementation for Rav1eBench {
@@ -18,19 +19,20 @@ impl BenchmarkImplementation for Rav1eBench {
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         // Load the raw image data (PPM format expected)
-        let input_data = std::fs::read(&args.input).context("Failed to read input file")?;
-        let img = image::load_from_memory_with_format(&input_data, image::ImageFormat::Pnm)
-            .context("Failed to decode input PPM")?;
-        let width = img.width() as usize;
-        let height = img.height() as usize;
-        let rgb_data = img.to_rgb8().into_raw();
-        let quality = args.quality;
+        let (width, height, rgb_data) = benchmark_harness::decode_ppm_rgb8(&args.input)?;
+
+        let (quantizer, speed) = match args.quality {
+            Quality::WebLow => (100, 9u8),
+            Quality::WebHigh => (80, 7u8),
+            Quality::Archival => (50, 4u8),
+        };
 
         Ok(Box::new(BenchContext {
-            width,
-            height,
+            width: width as usize,
+            height: height as usize,
             rgb_data,
-            quality,
+            quantizer,
+            speed,
         }))
     }
 
@@ -49,20 +51,8 @@ impl BenchmarkImplementation for Rav1eBench {
             ..Default::default()
         };
 
-        match ctx.quality {
-            Quality::WebLow => {
-                enc_config.quantizer = 100;
-                enc_config.speed_settings = SpeedSettings::from_preset(9);
-            }
-            Quality::WebHigh => {
-                enc_config.quantizer = 80;
-                enc_config.speed_settings = SpeedSettings::from_preset(7);
-            }
-            Quality::Archival => {
-                enc_config.quantizer = 50;
-                enc_config.speed_settings = SpeedSettings::from_preset(4);
-            }
-        }
+        enc_config.quantizer = ctx.quantizer;
+        enc_config.speed_settings = SpeedSettings::from_preset(ctx.speed);
 
         let cfg = Config::new().with_encoder_config(enc_config);
 

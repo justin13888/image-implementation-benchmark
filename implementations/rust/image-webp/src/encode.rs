@@ -14,10 +14,10 @@ impl BenchmarkImplementation for ImageWebpBench {
     }
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
-        let input_data = std::fs::read(&args.input).context("Failed to read input file")?;
-        let img = image::load_from_memory_with_format(&input_data, image::ImageFormat::Pnm)
-            .context("Failed to decode input PPM")?;
-        let img = image::DynamicImage::ImageRgb8(img.to_rgb8());
+        let (width, height, rgb_data) = benchmark_harness::decode_ppm_rgb8(&args.input)?;
+        let img = image::RgbImage::from_raw(width, height, rgb_data)
+            .context("Failed to create RgbImage")?;
+        let img = image::DynamicImage::ImageRgb8(img);
         Ok(Box::new(BenchContext { img }))
     }
 

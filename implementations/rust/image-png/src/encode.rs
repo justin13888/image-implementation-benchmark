@@ -7,7 +7,9 @@ use std::io::BufWriter;
 struct ImagePngBench;
 
 struct BenchContext {
-    img: image::DynamicImage,
+    rgb_data: Vec<u8>,
+    width: u32,
+    height: u32,
     compression: CompressionType,
     filter: FilterType,
 }
@@ -18,11 +20,7 @@ impl BenchmarkImplementation for ImagePngBench {
     }
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
-        // Load input image (PPM)
-        let input_data = std::fs::read(&args.input).context("Failed to read input file")?;
-        let img = image::load_from_memory_with_format(&input_data, image::ImageFormat::Pnm)
-            .context("Failed to decode input PPM")?;
-        let img = image::DynamicImage::ImageRgb8(img.to_rgb8());
+        let (width, height, rgb_data) = benchmark_harness::decode_ppm_rgb8(&args.input)?;
 
         // Map quality to compression
         let (compression, filter) = match args.quality {
@@ -32,7 +30,9 @@ impl BenchmarkImplementation for ImagePngBench {
         };
 
         Ok(Box::new(BenchContext {
-            img,
+            rgb_data,
+            width,
+            height,
             compression,
             filter,
         }))
@@ -43,16 +43,16 @@ impl BenchmarkImplementation for ImagePngBench {
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
 
-        let mut output = Vec::with_capacity(ctx.img.as_bytes().len() / 2);
+        let mut output = Vec::with_capacity(ctx.rgb_data.len() / 2);
         {
             let writer = BufWriter::new(&mut output);
             let encoder = PngEncoder::new_with_quality(writer, ctx.compression, ctx.filter);
             encoder
                 .write_image(
-                    ctx.img.as_bytes(),
-                    ctx.img.width(),
-                    ctx.img.height(),
-                    ctx.img.color().into(),
+                    &ctx.rgb_data,
+                    ctx.width,
+                    ctx.height,
+                    image::ColorType::Rgb8.into(),
                 )
                 .context("Failed to encode PNG")?;
         }

@@ -151,3 +151,18 @@ pub fn encode_ppm_rgb16(width: u32, height: u32, rgb_data: &[u16]) -> Result<Vec
     }
     Ok(output)
 }
+
+/// Decodes a PPM P6 file (8-bit per channel) to RGB pixel data.
+///
+/// # Arguments
+/// * `path` - Path to the PPM file
+///
+/// # Returns
+/// A tuple containing (width, height, rgb_data)
+pub fn decode_ppm_rgb8(path: &std::path::Path) -> Result<(u32, u32, Vec<u8>)> {
+    let input_data = fs::read(path).context("Failed to read input file")?;
+    let img = image::load_from_memory_with_format(&input_data, image::ImageFormat::Pnm)
+        .context("Failed to decode input PPM")?;
+    let rgb = img.to_rgb8();
+    Ok((rgb.width(), rgb.height(), rgb.to_vec()))
+}

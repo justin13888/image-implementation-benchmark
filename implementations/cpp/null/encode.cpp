@@ -1,6 +1,5 @@
 #include <cstdint>
 #include <cstring>
-#include <fstream>
 #include <vector>
 
 #include "../../../harness/cpp/benchmark_harness.hpp"
@@ -14,19 +13,11 @@ class NullEncodeBench : public BenchmarkImplementation {
   std::string name() const override { return "null-encode"; }
 
   void prepare(const Args &args) override {
-    std::ifstream file(args.input, std::ios::binary | std::ios::ate);
-    if (!file) {
-      throw std::runtime_error("Failed to open input file");
-    }
-
-    size_t size = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    input_data.resize(size);
-    file.read(reinterpret_cast<char *>(input_data.data()), size);
+    RGBImage img = decode_ppm_rgb8(args.input);
+    input_data = std::move(img.data);
 
     // Preallocate output buffer to same size
-    output_buffer.resize(size);
+    output_buffer.resize(input_data.size());
   }
 
   std::vector<uint8_t> run(const Args &args) override {
