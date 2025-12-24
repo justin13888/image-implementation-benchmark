@@ -30,15 +30,9 @@ impl BenchmarkImplementation for JpegDecoderBench {
         let pixels = decoder.decode().context("Failed to decode JPEG")?;
         let info = decoder.info().context("Failed to get image info")?;
 
-        // Output as PPM
-        let mut output = Vec::with_capacity(20 + pixels.len());
-        use std::io::Write;
         // jpeg_decoder typically outputs RGB for standard JPEGs.
         // We assume RGB (PixelFormat::RGB24).
-        // TODO: Validate pixel format if necessary, but for benchmark it's likely RGB.
-        write!(&mut output, "P6\n{} {}\n255\n", info.width, info.height)?;
-        output.write_all(&pixels)?;
-        Ok(output)
+        benchmark_harness::encode_ppm_rgb8(info.width as u32, info.height as u32, &pixels)
     }
 }
 

@@ -91,14 +91,7 @@ class LibJxlBench : public BenchmarkImplementation {
       }
     }
 
-    std::string header = "P6\n" + std::to_string(info.xsize) + " " +
-                         std::to_string(info.ysize) + "\n255\n";
-    std::vector<uint8_t> final_output;
-    final_output.reserve(header.size() + output.size());
-    final_output.insert(final_output.end(), header.begin(), header.end());
-    final_output.insert(final_output.end(), output.begin(), output.end());
-
-    return final_output;
+    return encode_ppm_rgb8(info.xsize, info.ysize, output);
   }
 
   std::vector<uint8_t> input_data;

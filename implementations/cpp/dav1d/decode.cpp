@@ -70,20 +70,17 @@ class Dav1dBench : public BenchmarkImplementation {
       throw std::runtime_error("avifImageYUVToRGB failed");
     }
 
-    std::string header = "P6\n" + std::to_string(rgb.width) + " " +
-                         std::to_string(rgb.height) + "\n255\n";
-    std::vector<uint8_t> output;
-    output.reserve(header.size() + rgb.width * rgb.height * 3);
-    output.insert(output.end(), header.begin(), header.end());
-
+    // Collect RGB pixels
+    std::vector<uint8_t> rgb_data;
+    rgb_data.reserve(rgb.width * rgb.height * 3);
     for (uint32_t y = 0; y < rgb.height; ++y) {
       uint8_t *row = rgb.pixels + (y * rgb.rowBytes);
-      output.insert(output.end(), row, row + (rgb.width * 3));
+      rgb_data.insert(rgb_data.end(), row, row + (rgb.width * 3));
     }
 
     avifRGBImageFreePixels(&rgb);
 
-    return output;
+    return encode_ppm_rgb8(rgb.width, rgb.height, rgb_data);
   }
 
   std::vector<uint8_t> input_data;

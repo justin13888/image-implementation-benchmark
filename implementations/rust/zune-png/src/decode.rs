@@ -35,22 +35,12 @@ impl BenchmarkImplementation for ZunePngBench {
 
         let pixels = decoder.decode().context("Failed to decode PNG")?;
 
-        use std::io::Write;
-
         match pixels {
             zune_png::zune_core::result::DecodingResult::U8(data) => {
-                let mut output = Vec::with_capacity(20 + data.len());
-                write!(&mut output, "P6\n{} {}\n255\n", w, h)?;
-                output.write_all(&data)?;
-                Ok(output)
+                benchmark_harness::encode_ppm_rgb8(w as u32, h as u32, &data)
             }
             zune_png::zune_core::result::DecodingResult::U16(data) => {
-                let mut output = Vec::with_capacity(20 + data.len() * 2);
-                write!(&mut output, "P6\n{} {}\n65535\n", w, h)?;
-                for val in data {
-                    output.write_all(&val.to_be_bytes())?;
-                }
-                Ok(output)
+                benchmark_harness::encode_ppm_rgb16(w as u32, h as u32, &data)
             }
             _ => anyhow::bail!("Unsupported pixel format"),
         }

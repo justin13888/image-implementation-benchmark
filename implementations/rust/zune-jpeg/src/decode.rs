@@ -33,12 +33,7 @@ impl BenchmarkImplementation for ZuneJpegBench {
             .ok_or_else(|| anyhow::anyhow!("Failed to get dimensions"))?;
         let pixels = decoder.decode().context("Failed to decode JPEG")?;
 
-        // Output as PPM
-        let mut output = Vec::with_capacity(20 + pixels.len());
-        use std::io::Write;
-        write!(&mut output, "P6\n{} {}\n255\n", w, h)?;
-        output.write_all(&pixels)?;
-        Ok(output)
+        benchmark_harness::encode_ppm_rgb8(w as u32, h as u32, &pixels)
     }
 }
 

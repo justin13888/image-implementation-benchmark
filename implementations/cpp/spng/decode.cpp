@@ -50,26 +50,12 @@ class SpngBench : public BenchmarkImplementation {
       throw std::runtime_error("spng_decoded_image_size failed");
     }
 
-    // Prepare PPM header
-    std::string header = "P6\n" + std::to_string(ihdr.width) + " " +
-                         std::to_string(ihdr.height) + "\n255\n";
-    std::vector<uint8_t> output;
-    output.reserve(header.size() + out_size);
-    output.insert(output.end(), header.begin(), header.end());
-
-    // Decode directly into vector after header?
-    // Vector data() pointer is risky if we resize.
-    // Better decode to temp or resize and append?
-    // Resize is fine.
-    size_t header_len = output.size();
-    output.resize(header_len + out_size);
-
-    if (spng_decode_image(ctx, output.data() + header_len, out_size,
-                          SPNG_FMT_RGB8, 0)) {
+    std::vector<uint8_t> rgb_data(out_size);
+    if (spng_decode_image(ctx, rgb_data.data(), out_size, SPNG_FMT_RGB8, 0)) {
       throw std::runtime_error("spng_decode_image failed");
     }
 
-    return output;
+    return encode_ppm_rgb8(ihdr.width, ihdr.height, rgb_data);
   }
 
   std::vector<uint8_t> input_data;

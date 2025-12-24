@@ -58,14 +58,7 @@ class MozJpegBench : public BenchmarkImplementation {
     jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
 
-    std::string header = "P6\n" + std::to_string(width) + " " +
-                         std::to_string(height) + "\n255\n";
-    std::vector<uint8_t> final_output;
-    final_output.reserve(header.size() + output.size());
-    final_output.insert(final_output.end(), header.begin(), header.end());
-    final_output.insert(final_output.end(), output.begin(), output.end());
-
-    return final_output;
+    return encode_ppm_rgb8(width, height, output);
   }
 
   std::vector<uint8_t> input_data;

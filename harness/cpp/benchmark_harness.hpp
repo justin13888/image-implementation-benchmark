@@ -38,6 +38,30 @@ inline uint32_t crc32_hash(const std::vector<uint8_t>& data) {
   return ::crc32(0L, data.data(), data.size());
 }
 
+/// Encodes RGB pixel data as PPM P6 format (8-bit per channel).
+///
+/// @param width Image width in pixels
+/// @param height Image height in pixels
+/// @param rgb_data RGB pixel data (3 bytes per pixel, row-major order)
+/// @return A vector containing the complete PPM file (header + pixel data)
+inline std::vector<uint8_t> encode_ppm_rgb8(
+    uint32_t width, uint32_t height, const std::vector<uint8_t>& rgb_data) {
+  size_t expected_size = static_cast<size_t>(width) * height * 3;
+  if (rgb_data.size() != expected_size) {
+    throw std::runtime_error("RGB data size mismatch: expected " +
+                             std::to_string(expected_size) + " bytes, got " +
+                             std::to_string(rgb_data.size()));
+  }
+
+  std::string header =
+      "P6\n" + std::to_string(width) + " " + std::to_string(height) + "\n255\n";
+  std::vector<uint8_t> output;
+  output.reserve(header.size() + rgb_data.size());
+  output.insert(output.end(), header.begin(), header.end());
+  output.insert(output.end(), rgb_data.begin(), rgb_data.end());
+  return output;
+}
+
 inline Args parse_args(int argc, char** argv) {
   Args args;
   for (int i = 1; i < argc; ++i) {

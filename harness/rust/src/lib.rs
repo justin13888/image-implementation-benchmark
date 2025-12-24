@@ -95,3 +95,59 @@ pub fn main<I: BenchmarkImplementation>(impl_: I) -> Result<()> {
 
     Ok(())
 }
+
+/// Encodes RGB pixel data as PPM P6 format (8-bit per channel).
+///
+/// # Arguments
+/// * `width` - Image width in pixels
+/// * `height` - Image height in pixels
+/// * `rgb_data` - RGB pixel data (3 bytes per pixel, row-major order)
+///
+/// # Returns
+/// A vector containing the complete PPM file (header + pixel data)
+pub fn encode_ppm_rgb8(width: u32, height: u32, rgb_data: &[u8]) -> Result<Vec<u8>> {
+    use std::io::Write;
+
+    let expected_size = (width as usize) * (height as usize) * 3;
+    if rgb_data.len() != expected_size {
+        anyhow::bail!(
+            "RGB data size mismatch: expected {} bytes, got {}",
+            expected_size,
+            rgb_data.len()
+        );
+    }
+
+    let mut output = Vec::with_capacity(20 + rgb_data.len());
+    write!(&mut output, "P6\n{} {}\n255\n", width, height)?;
+    output.write_all(rgb_data)?;
+    Ok(output)
+}
+
+/// Encodes RGB pixel data as PPM P6 format (16-bit per channel).
+///
+/// # Arguments
+/// * `width` - Image width in pixels
+/// * `height` - Image height in pixels
+/// * `rgb_data` - RGB pixel data (u16 values, 3 values per pixel, row-major order)
+///
+/// # Returns
+/// A vector containing the complete PPM file (header + pixel data in big-endian)
+pub fn encode_ppm_rgb16(width: u32, height: u32, rgb_data: &[u16]) -> Result<Vec<u8>> {
+    use std::io::Write;
+
+    let expected_size = (width as usize) * (height as usize) * 3;
+    if rgb_data.len() != expected_size {
+        anyhow::bail!(
+            "RGB data size mismatch: expected {} u16 values, got {}",
+            expected_size,
+            rgb_data.len()
+        );
+    }
+
+    let mut output = Vec::with_capacity(20 + rgb_data.len() * 2);
+    write!(&mut output, "P6\n{} {}\n65535\n", width, height)?;
+    for val in rgb_data {
+        output.write_all(&val.to_be_bytes())?;
+    }
+    Ok(output)
+}

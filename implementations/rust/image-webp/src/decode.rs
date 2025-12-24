@@ -27,14 +27,8 @@ impl BenchmarkImplementation for ImageWebpBench {
         let img = image::load_from_memory_with_format(&ctx.input_data, ImageFormat::WebP)
             .context("Failed to decode WebP")?;
 
-        // Output as PPM
         let rgb = img.to_rgb8();
-        let mut output = Vec::with_capacity(15 + rgb.len()); // Header + Data
-        use std::io::Write;
-        write!(&mut output, "P6\n{} {}\n255\n", rgb.width(), rgb.height())?;
-        output.write_all(&rgb)?;
-
-        Ok(output)
+        benchmark_harness::encode_ppm_rgb8(rgb.width(), rgb.height(), &rgb)
     }
 }
 
