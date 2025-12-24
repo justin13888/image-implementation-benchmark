@@ -1601,7 +1601,7 @@ def generate_summary(result_dir: str, raw_json_path: str):
 
     # TODO: Sort "Detailed Results" by format and then benchmark type
     # Generate plots using the helper and export them individually
-    plot_files: list[Tuple[str, str]] = []  # (bench_type, filename)
+    plot_files: list[Tuple[str, str, str]] = []  # (bench_type, bench_format, filename)
     plots = create_plots_from_parsed_results(parsed_results)
 
     import matplotlib.pyplot as plt
@@ -1610,9 +1610,13 @@ def generate_summary(result_dir: str, raw_json_path: str):
         filepath = os.path.join(result_dir, filename)
         fig.savefig(filepath)
         plt.close(fig)
-        # bench_type is the prefix before the first underscore
-        bench_type = filename.split("_")[0] if "_" in filename else "summary"
-        plot_files.append((bench_type, filename))
+        # filename resembles "{type}_{format}_results.png"
+        bench_type = "UNKNOWN TYPE"
+        bench_format = "UNKNOWN FORMAT"
+        if "_" in filename:
+            bench_type = filename.split("_")[0]
+            bench_format = filename.split("_")[1]
+        plot_files.append((bench_type, bench_format, filename))
 
     summary_path = f"{result_dir}/summary.md"
 
@@ -1651,9 +1655,9 @@ def generate_summary(result_dir: str, raw_json_path: str):
         f.write("\n## Detailed Results\n")
 
         if plot_files:
-            for bench_type, filename in plot_files:
+            for bench_type, bench_format, filename in plot_files:
                 f.write(
-                    f"\n### {bench_type.capitalize()}\n\n![{bench_type} results]({filename})\n"
+                    f"\n### {bench_type.capitalize()} {bench_format.upper()}\n\n![{bench_type.capitalize()} {bench_format.lower()} results]({filename})\n"
                 )
         else:
             f.write("No plots generated.\n")
