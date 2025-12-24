@@ -11,6 +11,7 @@ from enum import Enum
 import subprocess
 import os
 import sys
+import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import datetime
@@ -1118,11 +1119,14 @@ def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetri
         # Obtain metric
         try:
             # Run implementation
+            start_time = time.time()
             subprocess.run(
                 task.cmd(output_path),
                 shell=True,
                 check=True,
             )
+            end_time = time.time()
+            elapsed_time = end_time - start_time
 
             # Verify implementation generated output
             if not os.path.exists(output_path):
@@ -1153,7 +1157,7 @@ def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetri
                 raise ValueError(f"Unable to parse SSIMULACRA 2 output: `{out_str}`")
 
             print(
-                f"{Fore.GREEN}✓ Size: {humanize.naturalsize(filesize, binary=True)}, Score: {score:.2f}"
+                f"{Fore.GREEN}✓ Size: {humanize.naturalsize(filesize, binary=True)}, Score: {score:.2f} {Style.RESET_ALL}(took {elapsed_time:.1f} s)"
             )
 
             metrics.append(
@@ -1353,8 +1357,9 @@ def run(args: RunArgs):
 
         print(f"\n✓ Metrics saved to {metrics_path}")
 
-    # Generate summary
-    generate_summary(result_dir, json_output)
+    if not args.no_benchmarks:
+        # Generate summary
+        generate_summary(result_dir, json_output)
 
     # Measure memory if requested
     if args.measure_memory:
