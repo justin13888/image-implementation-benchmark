@@ -1116,6 +1116,8 @@ class BenchmarkMetrics(TypedDict):
     filesize: int
     ssimulacra2: float
     error: Optional[str] = None
+    type: str
+    format: str
 
 
 def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetrics]:
@@ -1202,6 +1204,8 @@ def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetri
                     filesize=filesize,
                     ssimulacra2=score,
                     error=None,
+                    type=task.impl.type.value,
+                    format=task.impl.format.value,
                 )
             )
         except Exception as e:
@@ -1224,6 +1228,8 @@ def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetri
                     filesize=0,
                     ssimulacra2=-1.0,
                     error=str(e),
+                    type=task.impl.type.value,
+                    format=task.impl.format.value,
                 )
             )
 
@@ -1730,6 +1736,20 @@ def generate_summary(
 
         # Process metrics if available
         if metrics is not None:
+            # Sort metrics: encode vs decode, format, quality, input file
+            # We want ENCODE to come before DECODE.
+            def type_priority(t: str) -> int:
+                return 0 if t == "encode" else 1
+
+            metrics.sort(
+                key=lambda m: (
+                    type_priority(m["type"]),
+                    m["format"],
+                    m["quality"],
+                    os.path.basename(m["input_path"]),
+                )
+            )
+
             buffer.write("\n## Metrics\n\n")
             buffer.write(
                 "| Implementation | Quality | Input File | File Size | SSIMULACRA 2 | Status |\n"
