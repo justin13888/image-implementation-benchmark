@@ -265,6 +265,9 @@ Use `./bench run` with a dataset. Always specify `--dataset` (default `test` has
 # Pathological/stress testing (4 synthetic images)
 ./bench run --dataset pathological
 
+# Test on sample of 3 images from KODAK dataset
+./bench run --dataset kodak --sample 3
+
 # Run specific formats
 ./bench run --dataset kodak --formats jpeg,avif
 

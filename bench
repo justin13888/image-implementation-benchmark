@@ -12,6 +12,7 @@ import subprocess
 import os
 import sys
 import time
+import random
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import datetime
@@ -156,7 +157,9 @@ DATASETS: Dict[str, Dataset] = {
 }
 
 # Cache input file list for re-use
-INPUT_FILES_CACHE: Dict[tuple[DatasetId, ImageFormats], Sequence[tuple[str, str]]] = {}
+INPUT_FILES_CACHE: Dict[
+    tuple[DatasetId, ImageFormats, Optional[int]], Sequence[tuple[str, str]]
+] = {}
 
 
 class BenchmarkType(str, Enum):
@@ -462,6 +465,10 @@ class RunArgs(BaseModel):
         tyro.conf.EnumChoicesFromValues,
         tyro.conf.arg(aliases=["-q"]),
         Field(description="Quality tier"),
+    ] = None
+    sample: Annotated[
+        Optional[int],
+        Field(description="Limit the maximum number of files to sample randomly"),
     ] = None
 
     # Booleans automatically become flags: --discard-output / --no-discard-output
@@ -848,6 +855,7 @@ def get_input_files(
     dataset_name: DatasetId,
     format: ImageFormats,
     quality: QualityTier,
+    limit: Optional[int] = None,
 ) -> Sequence[tuple[str, str]]:
     """
     Get list of input files for a given dataset, benchmark type.
@@ -859,11 +867,19 @@ def get_input_files(
     Pre-generates input files for benchmark type if necessary.
     """
 
-    if (dataset_name, format) in INPUT_FILES_CACHE:
-        return INPUT_FILES_CACHE[(dataset_name, format)]
+    if (dataset_name, format, limit) in INPUT_FILES_CACHE:
+        return INPUT_FILES_CACHE[(dataset_name, format, limit)]
 
     # Get all files for the dataset
     dataset_files = get_dataset_files(dataset_name)
+
+    # Sample files if limit is requested
+    if limit is not None and limit < len(dataset_files):
+        # We use a fixed seed based on the dataset name to ensure that
+        # the same subset is selected for both encode/decode passes within runs
+        # if the file list is stable.
+        rnd = random.Random(f"{dataset_name}_{limit}")
+        dataset_files = rnd.sample(dataset_files, limit)
 
     # input_files: (input_file, output_file)
     input_files: list[tuple[str, str]] = []
@@ -946,7 +962,7 @@ def get_input_files(
             f"Some input files not found {len(missing)} for '{dataset_name}': {','.join(missing[:5])}"
         )
 
-    INPUT_FILES_CACHE[(dataset_name, format)] = input_files
+    INPUT_FILES_CACHE[(dataset_name, format, limit)] = input_files
     return input_files
 
 
@@ -1069,7 +1085,9 @@ def build_bench_list(
             case _:
                 raise ValueError(f"Unknown implementation type: {impl.type}")
 
-        for input_file, source_file in get_input_files(dataset, input_format, quality):
+        for input_file, source_file in get_input_files(
+            dataset, input_format, quality, args.sample
+        ):
             input_path = input_file
 
             bench = BenchmarkTask(
