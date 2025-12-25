@@ -1616,7 +1616,8 @@ def generate_summary(
             # Imports used for other helper code are handled in the helper
 
             # Parse results
-            parsed_results = {"encode": {}, "decode": {}}
+            # Parse and aggregate results
+            aggregated_results = {"encode": {}, "decode": {}}
 
             for result in data.get("results", []):
                 name = result.get("command", "unknown")
@@ -1630,20 +1631,41 @@ def generate_summary(
                             fmt = meta[0]
                             bench_type = meta[1]
 
-                            if bench_type in parsed_results:
-                                if fmt not in parsed_results[bench_type]:
-                                    parsed_results[bench_type][fmt] = []
+                            if bench_type in aggregated_results:
+                                if fmt not in aggregated_results[bench_type]:
+                                    aggregated_results[bench_type][fmt] = {}
 
-                                parsed_results[bench_type][fmt].append(
-                                    {
-                                        "name": base_name,
-                                        "mean": (result.get("mean") or 0) * 1000,  # ms
-                                        "stddev": (result.get("stddev") or 0)
-                                        * 1000,  # ms
+                                if base_name not in aggregated_results[bench_type][fmt]:
+                                    aggregated_results[bench_type][fmt][base_name] = {
+                                        "mean_sum": 0.0,
+                                        "var_sum": 0.0,
+                                        "count": 0,
                                     }
-                                )
+
+                                mean_ms = (result.get("mean") or 0) * 1000
+                                stddev_ms = (result.get("stddev") or 0) * 1000
+
+                                agg = aggregated_results[bench_type][fmt][base_name]
+                                agg["mean_sum"] += mean_ms
+                                agg["var_sum"] += stddev_ms**2
+                                agg["count"] += 1
                 except Exception:
                     continue
+
+            # Convert to expected format for plotting
+            parsed_results = {}
+            for b_type, formats in aggregated_results.items():
+                parsed_results[b_type] = {}
+                for fmt, impls in formats.items():
+                    parsed_results[b_type][fmt] = []
+                    for impl_name, agg in impls.items():
+                        parsed_results[b_type][fmt].append(
+                            {
+                                "name": impl_name,
+                                "mean": agg["mean_sum"],
+                                "stddev": agg["var_sum"] ** 0.5,
+                            }
+                        )
 
             # Use the module-level plotting helper to create figures
 
