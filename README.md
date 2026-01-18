@@ -362,6 +362,8 @@ We include modern formats and their most competitive implementations.
 
 4. **mozjpeg design goals.** mozjpeg prioritizes compression ratio over speed. Its slower encode times are intentional, not a deficiency.
 
+5. **8-bit only pipeline.** All intermediate PPM files are normalized to 8-bit depth (max value 255). 16-bit images are not tested as they increase complexity of pipeline and do not provide meaningful extra data points.
+
 ## Contributing
 
 Contributions are welcome!

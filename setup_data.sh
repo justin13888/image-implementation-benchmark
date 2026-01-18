@@ -96,7 +96,7 @@ if [[ "$TARGET" == "all" || "$TARGET" == "pathological" ]]; then
 
     # Solid color (4K)
     if [ ! -f "data/pathological/solid_4k.png" ]; then
-        magick convert -size 3840x2160 xc:"#4287f5" data/pathological/solid_4k.png
+        magick -size 3840x2160 xc:"#4287f5" data/pathological/solid_4k.png
         echo "  ✓ solid_4k.png (tests RLE/skip optimizations)"
     else
         echo "  ✓ solid_4k.png already exists"
@@ -104,7 +104,7 @@ if [[ "$TARGET" == "all" || "$TARGET" == "pathological" ]]; then
 
     # Gaussian noise (4K)
     if [ ! -f "data/pathological/noise_4k.png" ]; then
-        magick convert -size 3840x2160 xc: +noise Gaussian data/pathological/noise_4k.png
+        magick -size 3840x2160 xc: +noise Gaussian data/pathological/noise_4k.png
         echo "  ✓ noise_4k.png (worst-case for compressors)"
     else
         echo "  ✓ noise_4k.png already exists"
@@ -112,7 +112,7 @@ if [[ "$TARGET" == "all" || "$TARGET" == "pathological" ]]; then
 
     # Screenshot with text and flat regions (4K)
     if [ ! -f "data/pathological/screenshot_4k.png" ]; then
-        magick convert -size 3840x2160 xc:white \
+        magick -size 3840x2160 xc:white \
             -fill "#2d2d2d" -draw "rectangle 0,0 3840,100" \
             -fill "#f5f5f5" -draw "rectangle 0,100 800,2160" \
             -fill white -draw "rectangle 800,100 3840,2160" \
@@ -127,7 +127,7 @@ if [[ "$TARGET" == "all" || "$TARGET" == "pathological" ]]; then
 
     # Alpha gradient (4K)
     if [ ! -f "data/pathological/alpha_gradient_4k.png" ]; then
-        magick convert -size 3840x2160 gradient: \
+        magick -size 3840x2160 gradient: \
             -size 3840x2160 gradient:"rgba(255,0,0,0)-rgba(0,0,255,255)" \
             -compose over -composite \
             data/pathological/alpha_gradient_4k.png
@@ -158,13 +158,13 @@ if [[ "$TARGET" == "all" || "$TARGET" == "reference" ]]; then
 
         # JPEG
         if [ ! -f "${output_base}_web-low.jpg" ]; then
-            magick convert "$input" -quality 50 -sampling-factor 4:2:0 "${output_base}_web-low.jpg"
+            magick "$input" -quality 50 -sampling-factor 4:2:0 "${output_base}_web-low.jpg"
         fi
         if [ ! -f "${output_base}_web-high.jpg" ]; then
-            magick convert "$input" -quality 80 -interlace Plane "${output_base}_web-high.jpg"
+            magick "$input" -quality 80 -interlace Plane "${output_base}_web-high.jpg"
         fi
         if [ ! -f "${output_base}_archival.jpg" ]; then
-            magick convert "$input" -quality 95 -sampling-factor 4:4:4 "${output_base}_archival.jpg"
+            magick "$input" -quality 95 -sampling-factor 4:4:4 "${output_base}_archival.jpg"
         fi
 
         # WebP
@@ -188,7 +188,7 @@ if [[ "$TARGET" == "all" || "$TARGET" == "reference" ]]; then
             
             if [[ "$input" == *.ppm ]]; then
                 temp_png="${input%.*}.temp.png"
-                magick convert "$input" "$temp_png"
+                magick "$input" "$temp_png"
                 avif_input="$temp_png"
             fi
 
@@ -223,11 +223,12 @@ if [[ "$TARGET" == "all" || "$TARGET" == "reference" ]]; then
 
     # 1. Test Dataset
     if [ ! -f "data/test.ppm" ]; then
-        magick convert -size 1024x1024 xc: +noise Random data/test.ppm
+        # Generate 8-bit PPM (all PPM files are normalized to 8-bit depth)
+        magick -size 1024x1024 xc: +noise Random -depth 8 data/test.ppm
     fi
     # Ensure test.png exists for PNG benchmarks
     if [ ! -f "data/test.png" ]; then
-        magick convert data/test.ppm data/test.png
+        magick data/test.ppm data/test.png
     fi
     generate_variants "data/test.ppm" "data/test"
 

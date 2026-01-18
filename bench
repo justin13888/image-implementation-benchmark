@@ -901,16 +901,16 @@ def get_input_files(
             if os.path.exists(target_file):
                 input_files.append((target_file, f))
             else:
-                # TODO: Need to validate more thoroughly this block of code for generation
                 # Need to convert dataset file into required format
                 print(f"Generating {target_file} from {f}...")
 
                 # 1. Convert to PPM
                 intermediate_ppm = f"{base_path}.ppm"
                 if not os.path.exists(intermediate_ppm):
-                    # Use ImageMagick to convert
+                    # Use ImageMagick to convert to 8-bit P6 PPM
+                    # We force 8-bit depth as not all implementations handle 16-bit PPM
                     subprocess.run(
-                        ["convert", f, intermediate_ppm],
+                        ["convert", f, "-depth", "8", intermediate_ppm],
                         check=True,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
