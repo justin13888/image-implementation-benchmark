@@ -468,7 +468,9 @@ class RunArgs(BaseModel):
     ] = None
     sample: Annotated[
         Optional[int],
-        Field(description="Limit the maximum number of files to sample randomly"),
+        Field(
+            description="Limit the maximum number of files from dataset to sample randomly"
+        ),
     ] = None
 
     # Booleans automatically become flags: --discard-output / --no-discard-output
@@ -1115,9 +1117,14 @@ class BenchmarkMetrics(TypedDict):
     source_path: str
     filesize: int
     ssimulacra2: float
-    error: Optional[str] = None
+    error: Optional[str]
     type: str
     format: str
+    # Image dimension metrics
+    width: int
+    height: int
+    megapixels: float
+    bpp: float  # bits per pixel = (filesize * 8) / (width * height)
 
 
 def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetrics]:
@@ -1190,8 +1197,23 @@ def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetri
             else:
                 raise ValueError(f"Unable to parse SSIMULACRA 2 output: `{out_str}`")
 
+            # 3. Get image dimensions from source file
+            width, height, megapixels, bpp = 0, 0, 0.0, 0.0
+            try:
+                from PIL import Image as PILImage
+
+                with PILImage.open(task.source_path) as img:
+                    width, height = img.size
+                    megapixels = (width * height) / 1_000_000
+                    if width > 0 and height > 0 and filesize > 0:
+                        bpp = (filesize * 8) / (width * height)
+            except Exception as img_err:
+                print(
+                    f"{Fore.YELLOW}Warning: Could not get dimensions: {img_err}{Style.RESET_ALL}"
+                )
+
             print(
-                f"{Fore.GREEN}✓ Size: {humanize.naturalsize(filesize, binary=True)}, Score: {score:.2f} {Style.RESET_ALL}(took {elapsed_time:.1f} s)"
+                f"{Fore.GREEN}✓ Size: {humanize.naturalsize(filesize, binary=True)}, Score: {score:.2f}, bpp: {bpp:.3f} {Style.RESET_ALL}(took {elapsed_time:.1f} s)"
             )
 
             metrics.append(
@@ -1206,6 +1228,10 @@ def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetri
                     error=None,
                     type=task.impl.type.value,
                     format=task.impl.format.value,
+                    width=width,
+                    height=height,
+                    megapixels=megapixels,
+                    bpp=bpp,
                 )
             )
         except Exception as e:
@@ -1230,6 +1256,10 @@ def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetri
                     error=str(e),
                     type=task.impl.type.value,
                     format=task.impl.format.value,
+                    width=0,
+                    height=0,
+                    megapixels=0.0,
+                    bpp=0.0,
                 )
             )
 
@@ -1595,6 +1625,251 @@ def create_plots_from_parsed_results(
     return plots
 
 
+def create_quality_vs_bpp_plots(
+    metrics: list[BenchmarkMetrics],
+) -> list[Tuple[str, "Figure"]]:
+    """Create scatter plots of SSIMULACRA2 score vs bits-per-pixel per format.
+
+    Groups by format, each point is one image encoded by one implementation.
+    Shows which implementations achieve better quality at lower file sizes.
+
+    Returns a list of tuples (filename, Figure).
+    """
+    import matplotlib.pyplot as plt
+
+    plots: list[Tuple[str, "Figure"]] = []
+
+    # Filter to encode-only metrics with valid data
+    encode_metrics = [
+        m
+        for m in metrics
+        if m["type"] == "encode"
+        and m["bpp"] > 0
+        and m["ssimulacra2"] > 0
+        and not m.get("error")
+    ]
+
+    if not encode_metrics:
+        return plots
+
+    # Group by format
+    formats: Dict[str, list[BenchmarkMetrics]] = {}
+    for m in encode_metrics:
+        fmt = m["format"]
+        if fmt not in formats:
+            formats[fmt] = []
+        formats[fmt].append(m)
+
+    # Create one plot per format
+    for fmt, fmt_metrics in sorted(formats.items()):
+        # Group by implementation for coloring
+        impls: Dict[str, list[BenchmarkMetrics]] = {}
+        for m in fmt_metrics:
+            impl = m["impl"]
+            if impl not in impls:
+                impls[impl] = []
+            impls[impl].append(m)
+
+        fig, ax = plt.subplots(figsize=(10, 6), constrained_layout=True)
+
+        # Use a colormap
+        colors = plt.cm.tab10.colors
+        for idx, (impl_name, impl_metrics) in enumerate(sorted(impls.items())):
+            bpps = [m["bpp"] for m in impl_metrics]
+            scores = [m["ssimulacra2"] for m in impl_metrics]
+            color = colors[idx % len(colors)]
+            ax.scatter(bpps, scores, label=impl_name, alpha=0.7, s=50, c=[color])
+
+        ax.set_xlabel("Bits per Pixel (bpp)")
+        ax.set_ylabel("SSIMULACRA2 Score")
+        ax.set_title(f"{fmt.upper()} - Quality vs Compression Efficiency")
+        ax.legend(loc="lower right", fontsize="small")
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim(left=0)
+        ax.set_ylim(bottom=0)
+
+        # Higher score and lower bpp is better (top-left corner)
+        ax.annotate(
+            "← Better",
+            xy=(0.02, 0.98),
+            xycoords="axes fraction",
+            fontsize=9,
+            color="green",
+            ha="left",
+            va="top",
+        )
+
+        filename = f"quality_vs_bpp_{fmt}.png"
+        plots.append((filename, fig))
+
+    return plots
+
+
+def create_format_comparison_plot(
+    metrics: list[BenchmarkMetrics],
+) -> Optional[Tuple[str, "Figure"]]:
+    """Create grouped bar chart comparing formats.
+
+    Shows average SSIMULACRA2 score and average bpp per format,
+    aggregated across all implementations and images.
+
+    Returns a tuple (filename, Figure) or None if no valid data.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    # Filter to encode-only metrics with valid data
+    encode_metrics = [
+        m
+        for m in metrics
+        if m["type"] == "encode"
+        and m["bpp"] > 0
+        and m["ssimulacra2"] > 0
+        and not m.get("error")
+    ]
+
+    if not encode_metrics:
+        return None
+
+    # Aggregate by format
+    format_stats: Dict[str, Dict[str, list[float]]] = {}
+    for m in encode_metrics:
+        fmt = m["format"]
+        if fmt not in format_stats:
+            format_stats[fmt] = {"bpp": [], "score": []}
+        format_stats[fmt]["bpp"].append(m["bpp"])
+        format_stats[fmt]["score"].append(m["ssimulacra2"])
+
+    # Calculate averages
+    formats_sorted = sorted(format_stats.keys())
+    avg_bpp = [
+        sum(format_stats[f]["bpp"]) / len(format_stats[f]["bpp"])
+        for f in formats_sorted
+    ]
+    avg_score = [
+        sum(format_stats[f]["score"]) / len(format_stats[f]["score"])
+        for f in formats_sorted
+    ]
+
+    # Create grouped bar chart
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+
+    x = np.arange(len(formats_sorted))
+    width = 0.6
+
+    # Plot average bpp
+    axes[0].bar(x, avg_bpp, width, color="steelblue", alpha=0.8)
+    axes[0].set_xlabel("Format")
+    axes[0].set_ylabel("Average Bits per Pixel")
+    axes[0].set_title("Compression Efficiency (lower is better)")
+    axes[0].set_xticks(x)
+    axes[0].set_xticklabels([f.upper() for f in formats_sorted])
+    axes[0].set_ylim(bottom=0)
+    for i, v in enumerate(avg_bpp):
+        axes[0].text(i, v + 0.05, f"{v:.2f}", ha="center", fontsize=9)
+
+    # Plot average score
+    axes[1].bar(x, avg_score, width, color="forestgreen", alpha=0.8)
+    axes[1].set_xlabel("Format")
+    axes[1].set_ylabel("Average SSIMULACRA2 Score")
+    axes[1].set_title("Visual Quality (higher is better)")
+    axes[1].set_xticks(x)
+    axes[1].set_xticklabels([f.upper() for f in formats_sorted])
+    axes[1].set_ylim(bottom=0)
+    for i, v in enumerate(avg_score):
+        axes[1].text(i, v + 0.5, f"{v:.1f}", ha="center", fontsize=9)
+
+    fig.suptitle("Format Comparison", fontsize=14)
+
+    return ("format_comparison.png", fig)
+
+
+def create_implementation_comparison_plots(
+    metrics: list[BenchmarkMetrics],
+) -> list[Tuple[str, "Figure"]]:
+    """Box plots comparing implementations within each format.
+
+    Shows distribution of quality scores and bpp per implementation,
+    helping identify which implementations are most consistent.
+
+    Returns a list of tuples (filename, Figure).
+    """
+    import matplotlib.pyplot as plt
+
+    plots: list[Tuple[str, "Figure"]] = []
+
+    # Filter to encode-only metrics with valid data
+    encode_metrics = [
+        m
+        for m in metrics
+        if m["type"] == "encode"
+        and m["bpp"] > 0
+        and m["ssimulacra2"] > 0
+        and not m.get("error")
+    ]
+
+    if not encode_metrics:
+        return plots
+
+    # Group by format
+    formats: Dict[str, list[BenchmarkMetrics]] = {}
+    for m in encode_metrics:
+        fmt = m["format"]
+        if fmt not in formats:
+            formats[fmt] = []
+        formats[fmt].append(m)
+
+    # Create one plot per format
+    for fmt, fmt_metrics in sorted(formats.items()):
+        # Group by implementation
+        impls: Dict[str, list[BenchmarkMetrics]] = {}
+        for m in fmt_metrics:
+            impl = m["impl"]
+            if impl not in impls:
+                impls[impl] = []
+            impls[impl].append(m)
+
+        if len(impls) < 2:
+            continue  # Skip if only one implementation
+
+        impl_names = sorted(impls.keys())
+
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+
+        # Prepare data for box plots
+        bpp_data = [sorted([m["bpp"] for m in impls[impl]]) for impl in impl_names]
+        score_data = [
+            sorted([m["ssimulacra2"] for m in impls[impl]]) for impl in impl_names
+        ]
+
+        # Box plot for bpp
+        bp1 = axes[0].boxplot(bpp_data, tick_labels=impl_names, patch_artist=True)
+        axes[0].set_ylabel("Bits per Pixel")
+        axes[0].set_title("Compression Efficiency Distribution")
+        axes[0].tick_params(axis="x", rotation=45)
+        axes[0].set_ylim(bottom=0)
+        for patch in bp1["boxes"]:
+            patch.set_facecolor("steelblue")
+            patch.set_alpha(0.7)
+
+        # Box plot for score
+        bp2 = axes[1].boxplot(score_data, tick_labels=impl_names, patch_artist=True)
+        axes[1].set_ylabel("SSIMULACRA2 Score")
+        axes[1].set_title("Visual Quality Distribution")
+        axes[1].tick_params(axis="x", rotation=45)
+        axes[1].set_ylim(bottom=0)
+        for patch in bp2["boxes"]:
+            patch.set_facecolor("forestgreen")
+            patch.set_alpha(0.7)
+
+        fig.suptitle(f"{fmt.upper()} - Implementation Comparison", fontsize=14)
+
+        filename = f"impl_comparison_{fmt}.png"
+        plots.append((filename, fig))
+
+    return plots
+
+
 def generate_summary(
     result_dir: str,
     raw_json_path: Optional[str],
@@ -1736,6 +2011,8 @@ def generate_summary(
 
         # Process metrics if available
         if metrics is not None:
+            import matplotlib.pyplot as plt
+
             # Sort metrics: encode vs decode, format, quality, input file
             # We want ENCODE to come before DECODE.
             def type_priority(t: str) -> int:
@@ -1750,12 +2027,69 @@ def generate_summary(
                 )
             )
 
+            # Generate new visualization plots
+            buffer.write("\n## Compression Analysis\n")
+
+            # 1. Quality vs BPP plots
+            quality_bpp_plots = create_quality_vs_bpp_plots(metrics)
+            if quality_bpp_plots:
+                buffer.write("\n### Quality vs Compression Efficiency\n\n")
+                buffer.write(
+                    "Higher SSIMULACRA2 score and lower bpp (top-left) indicates better compression efficiency.\n\n"
+                )
+                for filename, fig in quality_bpp_plots:
+                    filepath = os.path.join(result_dir, filename)
+                    fig.savefig(filepath, dpi=150)
+                    plt.close(fig)
+                    fmt_name = (
+                        filename.replace("quality_vs_bpp_", "")
+                        .replace(".png", "")
+                        .upper()
+                    )
+                    buffer.write(
+                        f"#### {fmt_name}\n\n![Quality vs BPP for {fmt_name}]({filename})\n\n"
+                    )
+
+            # 2. Format comparison plot
+            format_comparison = create_format_comparison_plot(metrics)
+            if format_comparison:
+                filename, fig = format_comparison
+                filepath = os.path.join(result_dir, filename)
+                fig.savefig(filepath, dpi=150)
+                plt.close(fig)
+                buffer.write("\n### Format Comparison\n\n")
+                buffer.write(
+                    "Aggregate comparison of formats across all implementations and images.\n\n"
+                )
+                buffer.write(f"![Format Comparison]({filename})\n\n")
+
+            # 3. Implementation comparison plots
+            impl_comparison_plots = create_implementation_comparison_plots(metrics)
+            if impl_comparison_plots:
+                buffer.write("\n### Implementation Comparison\n\n")
+                buffer.write(
+                    "Box plots showing distribution of quality and compression across images per implementation.\n\n"
+                )
+                for filename, fig in impl_comparison_plots:
+                    filepath = os.path.join(result_dir, filename)
+                    fig.savefig(filepath, dpi=150)
+                    plt.close(fig)
+                    fmt_name = (
+                        filename.replace("impl_comparison_", "")
+                        .replace(".png", "")
+                        .upper()
+                    )
+                    buffer.write(
+                        f"#### {fmt_name}\n\n![Implementation comparison for {fmt_name}]({filename})\n\n"
+                    )
+
+            # Metrics table
             buffer.write("\n## Metrics\n\n")
             buffer.write(
-                "| Implementation | Quality | Input File | File Size | SSIMULACRA 2 | Status |\n"
+                "| Implementation | Quality | Input File | File Size | bpp | SSIMULACRA 2 | Status |\n"
             )
             buffer.write(
-                "|----------------|---------|------------|-----------|--------------|--------|\n"
+                "|----------------|---------|------------|-----------|-----|--------------|--------|\n"
             )
             for m in metrics:
                 impl_name = m["impl"]
@@ -1766,10 +2100,11 @@ def generate_summary(
                     if m["filesize"] > 0
                     else "N/A"
                 )
+                bpp = f"{m['bpp']:.3f}" if m["bpp"] > 0 else "N/A"
                 ssim_score = m["ssimulacra2"]
                 status = "✗ " + m["error"][:30] + "..." if m.get("error") else "✓"
                 buffer.write(
-                    f"| {impl_name} | {quality} | {input_file} | {filesize} | {ssim_score} | {status} |\n"
+                    f"| {impl_name} | {quality} | {input_file} | {filesize} | {bpp} | {ssim_score} | {status} |\n"
                 )
 
         # Write buffer to file
