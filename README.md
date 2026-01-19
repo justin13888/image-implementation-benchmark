@@ -2,6 +2,116 @@
 
 This repository contains benchmarks for various image format implementations, comparing performance across C, C++, and Rust libraries.
 
+## Getting Started
+
+### Prerequisites
+
+* [uv](https://docs.astral.sh/uv/) - Python package manager (install: `curl -LsSf https://astral.sh/uv/install.sh | sh`)
+* Rust toolchain ([rustup](https://rustup.rs/))
+* CMake, Clang, and development libraries
+* ImageMagick, hyperfine, wget, unzip
+
+  On Ubuntu/Debian:
+
+  ```bash
+  sudo apt install build-essential clang clang-format cmake ccache libmimalloc-dev \
+    libpng-dev libspng-dev libwebp-dev libavif-dev libdav1d-dev libjxl-dev \
+    pkg-config nasm imagemagick hyperfine wget unzip webp libavif-bin libjxl-tools
+  ```
+
+  On macOS:
+
+  ```bash
+  brew install clang-format cmake ccache mimalloc libpng libspng webp libavif dav1d jpeg-xl pkg-config nasm imagemagick hyperfine wget unzip
+  ```
+
+* Install forked ssimulacra2_rs that has PPM support:
+  
+  ```bash
+  # In any another directory
+  git clone https://github.com/justin13888/ssimulacra2.git
+  cd ssimulacra2/ssimulacra2_bin
+  cargo install --path . --no-default-features
+  ```
+
+### Setup
+
+1. **Install Python dependencies**:
+
+   ```bash
+   uv sync  # Creates .venv with pillow, imagehash, numpy
+   ```
+
+2. **Download benchmark datasets** (~3.5GB):
+
+   ```bash
+   ./setup_data.sh  # Downloads KODAK, DIV2K, generates pathological tests
+   
+   # Or setup specific datasets:
+   ./setup_data.sh kodak         # Only KODAK
+   ./setup_data.sh div2k         # Only DIV2K
+   ./setup_data.sh pathological  # Only Pathological tests
+   ./setup_data.sh reference     # Only Reference encodings
+   ```
+
+3. **Build implementations** (see individual implementation directories)
+
+### Running Benchmarks
+
+Use `./bench run` with a dataset. Always specify `--dataset` (default `test` has minimal coverage):
+
+```bash
+# Quick test (minimal sample, single iteration)
+./bench run --dataset kodak --sample 3 --quick
+
+# =====
+
+# Recommended if you have time: KODAK dataset (24 images, cache-resident)
+./bench run --dataset kodak
+
+# High-resolution testing (20 diverse 2K/4K images)
+./bench run --dataset div2k
+
+# Pathological/stress testing (4 synthetic images)
+./bench run --dataset pathological
+
+# Test on sample of 3 images from KODAK dataset
+./bench run --dataset kodak --sample 3
+
+# Run specific formats
+./bench run --dataset kodak --formats jpeg,avif
+
+# Decode-only benchmarks
+./bench run --dataset kodak --mode decode
+
+# Parallel benchmarks (all CPU cores)
+./bench run --dataset kodak --threads 0
+
+# Discard output I/O (pure compute)
+./bench run --dataset kodak --discard-output
+
+# Measure memory usage
+./bench run --dataset div2k --measure-memory
+
+# Compile all benchmarks
+./bench compile
+```
+
+### Cleanup
+
+```bash
+./bench clean
+```
+
+### Results
+
+Results are in `./results/<timestamp>/`:
+
+* `summary.md` - Human-readable tables
+* `raw.json` - Full Hyperfine output
+* `manifest.json` - Reproducibility manifest
+* `memory.csv` - Peak RSS (if `--measure-memory` used)
+
 ## Methodology
 
 ### Input Generation
@@ -196,111 +306,6 @@ Every benchmark run generates a `manifest.json` containing:
 ```
 
 This manifest is committed alongside results for full reproducibility.
-
-## Getting Started
-
-### Prerequisites
-
-* [uv](https://docs.astral.sh/uv/) - Python package manager (install: `curl -LsSf https://astral.sh/uv/install.sh | sh`)
-* Rust toolchain ([rustup](https://rustup.rs/))
-* CMake, Clang, and development libraries
-* ImageMagick, hyperfine, wget, unzip
-
-  On Ubuntu/Debian:
-
-  ```bash
-  sudo apt install build-essential clang clang-format cmake ccache libmimalloc-dev \
-    libpng-dev libspng-dev libwebp-dev libavif-dev libdav1d-dev libjxl-dev \
-    pkg-config nasm imagemagick hyperfine wget unzip webp libavif-bin libjxl-tools
-  ```
-
-  On macOS:
-
-  ```bash
-  brew install clang-format cmake ccache mimalloc libpng libspng webp libavif dav1d jpeg-xl pkg-config nasm imagemagick hyperfine wget unzip
-  ```
-
-* Install forked ssimulacra2_rs that has PPM support:
-  
-  ```bash
-  # In any another directory
-  git clone https://github.com/justin13888/ssimulacra2.git
-  cd ssimulacra2/ssimulacra2_bin
-  cargo install --path . --no-default-features
-  ```
-
-### Setup
-
-1. **Install Python dependencies**:
-
-   ```bash
-   uv sync  # Creates .venv with pillow, imagehash, numpy
-   ```
-
-2. **Download benchmark datasets** (~3.5GB):
-
-   ```bash
-   ./setup_data.sh  # Downloads KODAK, DIV2K, generates pathological tests
-   
-   # Or setup specific datasets:
-   ./setup_data.sh kodak         # Only KODAK
-   ./setup_data.sh div2k         # Only DIV2K
-   ./setup_data.sh pathological  # Only Pathological tests
-   ./setup_data.sh reference     # Only Reference encodings
-   ```
-
-3. **Build implementations** (see individual implementation directories)
-
-### Running Benchmarks
-
-Use `./bench run` with a dataset. Always specify `--dataset` (default `test` has minimal coverage):
-
-```bash
-# Recommended: KODAK dataset (24 images, cache-resident)
-./bench run --dataset kodak
-
-# High-resolution testing (20 diverse 2K/4K images)
-./bench run --dataset div2k
-
-# Pathological/stress testing (4 synthetic images)
-./bench run --dataset pathological
-
-# Test on sample of 3 images from KODAK dataset
-./bench run --dataset kodak --sample 3
-
-# Run specific formats
-./bench run --dataset kodak --formats jpeg,avif
-
-# Decode-only benchmarks
-./bench run --dataset kodak --mode decode
-
-# Parallel benchmarks (all CPU cores)
-./bench run --dataset kodak --threads 0
-
-# Discard output I/O (pure compute)
-./bench run --dataset kodak --discard-output
-
-# Measure memory usage
-./bench run --dataset div2k --measure-memory
-
-# Compile all benchmarks
-./bench compile
-```
-
-### Cleanup
-
-```bash
-./bench clean
-```
-
-### Results
-
-Results are in `./results/<timestamp>/`:
-
-* `summary.md` - Human-readable tables
-* `raw.json` - Full Hyperfine output
-* `manifest.json` - Reproducibility manifest
-* `memory.csv` - Peak RSS (if `--measure-memory` used)
 
 ## Image Format Implementations
 
