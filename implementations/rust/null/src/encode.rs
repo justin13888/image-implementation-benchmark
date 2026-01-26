@@ -1,6 +1,5 @@
 use anyhow::Result;
 use benchmark_harness::{Args, BenchmarkImplementation};
-use std::fs;
 
 struct NullEncodeBench;
 
@@ -15,11 +14,15 @@ impl BenchmarkImplementation for NullEncodeBench {
     }
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
-        let input_data = fs::read(&args.input)?;
-        let output_buffer = vec![0u8; input_data.len()];
+        let (_width, _height, rgb_data) = benchmark_harness::decode_ppm_rgb8(&args.input)?;
+        // Ideally we should do something with quality here to simulate "processing" args,
+        // but for null we might just ignore it or store it.
+        // Let's at least have the right data structures.
+
+        let output_buffer = vec![0u8; rgb_data.len()];
 
         Ok(Box::new(BenchContext {
-            input_data,
+            input_data: rgb_data, // Using rgb_data as input_data
             output_buffer,
         }))
     }
@@ -39,11 +42,6 @@ impl BenchmarkImplementation for NullEncodeBench {
         }
 
         Ok(ctx.output_buffer.clone())
-    }
-
-    fn verify(&self, _args: &Args, _context: &dyn std::any::Any, _output: &[u8]) -> Result<()> {
-        // No verification needed for null benchmark
-        Ok(())
     }
 }
 

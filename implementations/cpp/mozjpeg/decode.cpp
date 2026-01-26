@@ -19,22 +19,10 @@ class MozJpegBench : public BenchmarkImplementation {
     input_data.resize(size);
     if (!file.read(reinterpret_cast<char *>(input_data.data()), size))
       throw std::runtime_error("Failed to read input file");
-
-    if (args.verify) {
-      reference_output = decode(input_data);
-    }
   }
 
   std::vector<uint8_t> run(const Args &args) override {
     return decode(input_data);
-  }
-
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    if (reference_output.empty()) {
-      throw std::runtime_error(
-          "Reference output not available for verification");
-    }
-    verify_lossless(output, reference_output);
   }
 
  private:
@@ -70,11 +58,10 @@ class MozJpegBench : public BenchmarkImplementation {
     jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
 
-    return output;
+    return encode_ppm_rgb8(width, height, output);
   }
 
   std::vector<uint8_t> input_data;
-  std::vector<uint8_t> reference_output;
 };
 
 int main(int argc, char **argv) {

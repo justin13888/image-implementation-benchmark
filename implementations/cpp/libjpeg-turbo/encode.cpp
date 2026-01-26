@@ -1,4 +1,3 @@
-#include <fstream>
 #include <stdexcept>
 #include <vector>
 
@@ -10,79 +9,24 @@ class LibJpegTurboEncodeBench : public BenchmarkImplementation {
   std::string name() const override { return "libjpeg-turbo-encode"; }
 
   void prepare(const Args &args) override {
-    // Load input file (PPM or PNG expected)
-    std::ifstream file(args.input, std::ios::binary | std::ios::ate);
-    if (!file)
-      throw std::runtime_error("Failed to open input file: " + args.input);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-    std::vector<char> buffer(size);
-    if (!file.read(buffer.data(), size))
-      throw std::runtime_error("Failed to read input file");
-
-    // Simple PPM parser (P6 format)
-    const char *data = buffer.data();
-    if (buffer.size() < 3 || data[0] != 'P' || data[1] != '6') {
-      throw std::runtime_error("Input must be PPM P6 format");
-    }
-
-    // Skip to dimensions
-    size_t pos = 3;
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-
-    // Skip comments
-    while (pos < buffer.size() && data[pos] == '#') {
-      while (pos < buffer.size() && data[pos] != '\n') pos++;
-      pos++;
-    }
-
-    // Read width and height
-    width = 0;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
-      width = width * 10 + (data[pos] - '0');
-      pos++;
-    }
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-
-    height = 0;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
-      height = height * 10 + (data[pos] - '0');
-      pos++;
-    }
-
-    // Skip max value
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') pos++;
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-
-    // Copy pixel data
-    input_data.assign(data + pos, data + buffer.size());
-
-    if (input_data.size() < width * height * 3) {
-      throw std::runtime_error("Insufficient pixel data in PPM file");
-    }
+    RGBImage img = decode_ppm_rgb8(args.input);
+    width = img.width;
+    height = img.height;
+    input_data = std::move(img.data);
 
     // Store quality setting
     if (args.quality == "web-low") {
       quality = 50;
       progressive = false;
-      subsample = JDCT_ISLOW;
+      use_444 = false;
     } else if (args.quality == "web-high") {
       quality = 80;
       progressive = true;
-      subsample = JDCT_ISLOW;
+      use_444 = false;
     } else {  // archival
       quality = 95;
       progressive = false;
-      subsample = JDCT_FLOAT;
+      use_444 = true;
     }
   }
 
@@ -111,7 +55,7 @@ class LibJpegTurboEncodeBench : public BenchmarkImplementation {
     }
 
     // Set subsampling for archival (4:4:4)
-    if (args.quality == "archival") {
+    if (use_444) {
       cinfo.comp_info[0].h_samp_factor = 1;
       cinfo.comp_info[0].v_samp_factor = 1;
       cinfo.comp_info[1].h_samp_factor = 1;
@@ -142,24 +86,13 @@ class LibJpegTurboEncodeBench : public BenchmarkImplementation {
     return output;
   }
 
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    // Basic verification: check that output is non-empty and is valid JPEG
-    if (output.empty()) {
-      throw std::runtime_error("Encoder produced empty output");
-    }
-    if (output.size() < 2 || output[0] != 0xFF || output[1] != 0xD8) {
-      throw std::runtime_error(
-          "Output is not a valid JPEG (missing SOI marker)");
-    }
-  }
-
  private:
   std::vector<uint8_t> input_data;
   int width;
   int height;
   int quality;
   bool progressive;
-  J_DCT_METHOD subsample;
+  bool use_444;
 };
 
 int main(int argc, char **argv) {

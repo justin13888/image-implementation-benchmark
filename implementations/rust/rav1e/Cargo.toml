@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "bench-rav1e"
+name = "bench-rav1e-encode"
 path = "src/encode.rs"
 
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }
 rav1e = "0.8"
+avif-serialize = "0.8.6"
 anyhow = "1.0"
-image = "0.24"
+image = { version = "0.25.9", default-features = false, features = ["pnm"] }

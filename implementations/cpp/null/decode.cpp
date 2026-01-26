@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <vector>
 
@@ -8,17 +9,6 @@ class NullBench : public BenchmarkImplementation {
  private:
   std::vector<uint8_t> input_data;
   std::vector<uint8_t> output_buffer;
-
-  uint32_t crc32(const uint8_t *data, size_t length) {
-    uint32_t crc = 0xFFFFFFFF;
-    for (size_t i = 0; i < length; i++) {
-      crc ^= data[i];
-      for (int j = 0; j < 8; j++) {
-        crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
-      }
-    }
-    return ~crc;
-  }
 
  public:
   std::string name() const override { return "null-decode"; }
@@ -41,7 +31,7 @@ class NullBench : public BenchmarkImplementation {
 
   std::vector<uint8_t> run(const Args &args) override {
     // Just compute CRC32 and copy to output buffer
-    uint32_t checksum = crc32(input_data.data(), input_data.size());
+    uint32_t checksum = crc32_hash(input_data);
     std::copy(input_data.begin(), input_data.end(), output_buffer.begin());
 
     // Write checksum at end to prevent optimization
@@ -50,10 +40,6 @@ class NullBench : public BenchmarkImplementation {
     }
 
     return output_buffer;
-  }
-
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    // No verification needed for null benchmark
   }
 };
 

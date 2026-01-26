@@ -11,4 +11,4 @@ path = "src/decode.rs"
 benchmark-harness = { path = "../../../harness/rust" }
 jpeg-decoder = "0.3"
 anyhow = "1.0"
-image = "0.25.9"
+image = { version = "0.25.9", default-features = false, features = ["pnm"] }

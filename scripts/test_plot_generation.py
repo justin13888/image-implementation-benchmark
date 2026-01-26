@@ -37,7 +37,7 @@ with open(bench_path, "r") as bf:
     source = bf.read()
 exec(compile(source, bench_path, "exec"), bench.__dict__)
 sys.modules["bench"] = bench
-from bench import generate_summary
+from bench import generate_summary  # noqa: E402
 
 
 def main():

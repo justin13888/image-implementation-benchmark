@@ -14,8 +14,10 @@ impl BenchmarkImplementation for ImageWebpBench {
     }
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
-        let img = image::open(&args.input).context("Failed to open input image")?;
-        let img = image::DynamicImage::ImageRgb8(img.to_rgb8());
+        let (width, height, rgb_data) = benchmark_harness::decode_ppm_rgb8(&args.input)?;
+        let img = image::RgbImage::from_raw(width, height, rgb_data)
+            .context("Failed to create RgbImage")?;
+        let img = image::DynamicImage::ImageRgb8(img);
         Ok(Box::new(BenchContext { img }))
     }
 
@@ -29,25 +31,14 @@ impl BenchmarkImplementation for ImageWebpBench {
         {
             let cursor = Cursor::new(&mut output);
             let mut writer = BufWriter::new(cursor);
-            // image-webp crate (used by image 0.24) is currently lossless only.
-            // We cannot set quality.
+            // TODO: image-webp crate only supports lossless encoding as of writing.
+            // This means quality tiers (web-low, web-high) are not respected.
             ctx.img
                 .write_to(&mut writer, image::ImageFormat::WebP)
                 .context("Failed to encode WebP")?;
         }
 
         Ok(output)
-    }
-
-    fn verify(&self, _args: &Args, _context: &dyn std::any::Any, output: &[u8]) -> Result<()> {
-        if output.is_empty() {
-            anyhow::bail!("Encoder produced empty output");
-        }
-        // Check WebP signature (RIFF ... WEBP)
-        if output.len() < 12 || &output[0..4] != b"RIFF" || &output[8..12] != b"WEBP" {
-            anyhow::bail!("Output is not a valid WebP");
-        }
-        Ok(())
     }
 }
 

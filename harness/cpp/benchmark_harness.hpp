@@ -23,9 +23,6 @@ struct Args {
   int warmup = 2;
   int threads = 0;
   bool discard = false;
-  bool verify = false;
-  bool preallocate = false;
-  double verify_threshold = 60.0;
 };
 
 class BenchmarkImplementation {
@@ -34,66 +31,134 @@ class BenchmarkImplementation {
   virtual std::string name() const = 0;
   virtual void prepare(const Args& args) = 0;
   virtual std::vector<uint8_t> run(const Args& args) = 0;
-  virtual void verify(const Args& args, const std::vector<uint8_t>& output) = 0;
 };
-
-// Calculate PSNR between two byte arrays
-inline double calculate_psnr(const std::vector<uint8_t>& a,
-                             const std::vector<uint8_t>& b) {
-  if (a.size() != b.size()) {
-    throw std::runtime_error("Image size mismatch for PSNR calculation");
-  }
-
-  double mse = 0.0;
-  for (size_t i = 0; i < a.size(); ++i) {
-    double diff = static_cast<double>(a[i]) - static_cast<double>(b[i]);
-    mse += diff * diff;
-  }
-  mse /= a.size();
-
-  if (mse == 0.0) {
-    return INFINITY;
-  }
-
-  return 10.0 * std::log10(255.0 * 255.0 / mse);
-}
-
-// Verify lossless output (exact byte match)
-inline void verify_lossless(const std::vector<uint8_t>& output,
-                            const std::vector<uint8_t>& reference) {
-  if (output.size() != reference.size()) {
-    throw std::runtime_error("Lossless verification failed: size mismatch");
-  }
-
-  if (output != reference) {
-    // Find first difference
-    for (size_t i = 0; i < output.size(); ++i) {
-      if (output[i] != reference[i]) {
-        std::ostringstream oss;
-        oss << "Lossless verification failed: byte mismatch at offset " << i;
-        throw std::runtime_error(oss.str());
-      }
-    }
-  }
-}
-
-// Verify lossy output (PSNR-based)
-inline void verify_lossy(const std::vector<uint8_t>& output,
-                         const std::vector<uint8_t>& reference,
-                         double threshold_db) {
-  double psnr = calculate_psnr(output, reference);
-
-  if (psnr < threshold_db) {
-    std::ostringstream oss;
-    oss << "Lossy verification failed: PSNR " << psnr << " dB below threshold "
-        << threshold_db << " dB";
-    throw std::runtime_error(oss.str());
-  }
-}
 
 inline uint32_t crc32_hash(const std::vector<uint8_t>& data) {
   // Use zlib's hardware-accelerated CRC32 implementation
   return ::crc32(0L, data.data(), data.size());
+}
+
+/// Encodes RGB pixel data as PPM P6 format (8-bit per channel).
+///
+/// @param width Image width in pixels
+/// @param height Image height in pixels
+/// @param rgb_data RGB pixel data (3 bytes per pixel, row-major order)
+/// @return A vector containing the complete PPM file (header + pixel data)
+inline std::vector<uint8_t> encode_ppm_rgb8(
+    uint32_t width, uint32_t height, const std::vector<uint8_t>& rgb_data) {
+  size_t expected_size = static_cast<size_t>(width) * height * 3;
+  if (rgb_data.size() != expected_size) {
+    throw std::runtime_error("RGB data size mismatch: expected " +
+                             std::to_string(expected_size) + " bytes, got " +
+                             std::to_string(rgb_data.size()));
+  }
+
+  std::string header =
+      "P6\n" + std::to_string(width) + " " + std::to_string(height) + "\n255\n";
+  std::vector<uint8_t> output;
+  output.reserve(header.size() + rgb_data.size());
+  output.insert(output.end(), header.begin(), header.end());
+  output.insert(output.end(), rgb_data.begin(), rgb_data.end());
+  return output;
+}
+
+/// Encodes RGB pixel data as PPM P6 format (16-bit per channel).
+///
+/// @param width Image width in pixels
+/// @param height Image height in pixels
+/// @param rgb_data RGB pixel data (u16 values, 3 values per pixel, row-major
+/// order)
+/// @return A vector containing the complete PPM file (header + pixel data in
+/// big-endian)
+inline std::vector<uint8_t> encode_ppm_rgb16(
+    uint32_t width, uint32_t height, const std::vector<uint16_t>& rgb_data) {
+  size_t expected_size = static_cast<size_t>(width) * height * 3;
+  if (rgb_data.size() != expected_size) {
+    throw std::runtime_error(
+        "RGB data size mismatch: expected " + std::to_string(expected_size) +
+        " u16 values, got " + std::to_string(rgb_data.size()));
+  }
+
+  std::string header = "P6\n" + std::to_string(width) + " " +
+                       std::to_string(height) + "\n65535\n";
+  std::vector<uint8_t> output;
+  output.reserve(header.size() + rgb_data.size() * 2);
+  output.insert(output.end(), header.begin(), header.end());
+
+  // Convert to big-endian
+  for (uint16_t val : rgb_data) {
+    output.push_back(static_cast<uint8_t>(val >> 8));
+    output.push_back(static_cast<uint8_t>(val & 0xFF));
+  }
+  return output;
+}
+
+struct RGBImage {
+  int width;
+  int height;
+  std::vector<uint8_t> data;
+};
+
+inline RGBImage decode_ppm_rgb8(const std::string& input_path) {
+  std::ifstream file(input_path, std::ios::binary | std::ios::ate);
+  if (!file)
+    throw std::runtime_error("Failed to open input file: " + input_path);
+  std::streamsize size = file.tellg();
+  file.seekg(0, std::ios::beg);
+  std::vector<char> buffer(size);
+  if (!file.read(buffer.data(), size))
+    throw std::runtime_error("Failed to read input file");
+
+  const char* data = buffer.data();
+  if (buffer.size() < 3 || data[0] != 'P' || data[1] != '6') {
+    throw std::runtime_error("Input must be PPM P6 format");
+  }
+
+  size_t pos = 3;
+  // Skip whitespace
+  while (pos < buffer.size() &&
+         (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
+    pos++;
+
+  // Skip comments
+  while (pos < buffer.size() && data[pos] == '#') {
+    while (pos < buffer.size() && data[pos] != '\n') pos++;
+    pos++;
+  }
+
+  int width = 0;
+  while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
+    width = width * 10 + (data[pos] - '0');
+    pos++;
+  }
+  while (pos < buffer.size() &&
+         (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
+    pos++;
+
+  int height = 0;
+  while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
+    height = height * 10 + (data[pos] - '0');
+    pos++;
+  }
+
+  // Skip max value
+  while (pos < buffer.size() &&
+         (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
+    pos++;
+  while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') pos++;
+  while (pos < buffer.size() &&
+         (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
+    pos++;
+
+  std::vector<uint8_t> rgb_data(
+      reinterpret_cast<const uint8_t*>(data + pos),
+      reinterpret_cast<const uint8_t*>(data + buffer.size()));
+
+  if (rgb_data.size() < static_cast<size_t>(width) * height * 3) {
+    throw std::runtime_error("Insufficient pixel data in PPM file");
+  }
+
+  return {width, height, rgb_data};
 }
 
 inline Args parse_args(int argc, char** argv) {
@@ -114,12 +179,6 @@ inline Args parse_args(int argc, char** argv) {
       args.threads = std::stoi(argv[++i]);
     else if (arg == "--discard")
       args.discard = true;
-    else if (arg == "--verify")
-      args.verify = true;
-    else if (arg == "--preallocate")
-      args.preallocate = true;
-    else if (arg == "--verify-threshold" && i + 1 < argc)
-      args.verify_threshold = std::stod(argv[++i]);
   }
   return args;
 }
@@ -160,10 +219,6 @@ inline int run_benchmark(int argc, char** argv, BenchmarkImplementation& impl) {
           outfile.write(reinterpret_cast<const char*>(output.data()),
                         output.size());
         }
-      }
-
-      if (args.verify) {
-        impl.verify(args, output);
       }
     }
   } catch (const std::exception& e) {

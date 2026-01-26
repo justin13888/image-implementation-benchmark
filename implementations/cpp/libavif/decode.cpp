@@ -20,23 +20,10 @@ class LibAvifBench : public BenchmarkImplementation {
     input_data.resize(size);
     if (!file.read(reinterpret_cast<char *>(input_data.data()), size))
       throw std::runtime_error("Failed to read input file");
-
-    if (args.verify) {
-      reference_output = decode(input_data);
-    }
   }
 
   std::vector<uint8_t> run(const Args &args) override {
     return decode(input_data);
-  }
-
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    if (reference_output.empty()) {
-      throw std::runtime_error(
-          "Reference output not available for verification");
-    }
-    // AVIF is lossy, but self-verification should be exact.
-    verify_lossless(output, reference_output);
   }
 
  private:
@@ -66,7 +53,7 @@ class LibAvifBench : public BenchmarkImplementation {
     // Convert to RGB
     avifRGBImage rgb;
     avifRGBImageSetDefaults(&rgb, decoder->image);
-    rgb.format = AVIF_RGB_FORMAT_RGBA;
+    rgb.format = AVIF_RGB_FORMAT_RGB;
     rgb.depth = 8;
 
     avifRGBImageAllocatePixels(&rgb);
@@ -77,17 +64,21 @@ class LibAvifBench : public BenchmarkImplementation {
       throw std::runtime_error("avifImageYUVToRGB failed");
     }
 
-    std::vector<uint8_t> output(rgb.pixels,
-                                rgb.pixels + rgb.rowBytes * rgb.height);
+    // Collect RGB pixels
+    std::vector<uint8_t> rgb_data;
+    rgb_data.reserve(rgb.width * rgb.height * 3);
+    for (uint32_t y = 0; y < rgb.height; ++y) {
+      uint8_t *row = rgb.pixels + (y * rgb.rowBytes);
+      rgb_data.insert(rgb_data.end(), row, row + (rgb.width * 3));
+    }
 
     avifRGBImageFreePixels(&rgb);
     avifDecoderDestroy(decoder);
 
-    return output;
+    return encode_ppm_rgb8(rgb.width, rgb.height, rgb_data);
   }
 
   std::vector<uint8_t> input_data;
-  std::vector<uint8_t> reference_output;
 };
 
 int main(int argc, char **argv) {

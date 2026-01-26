@@ -19,22 +19,10 @@ class SpngBench : public BenchmarkImplementation {
     input_data.resize(size);
     if (!file.read(reinterpret_cast<char *>(input_data.data()), size))
       throw std::runtime_error("Failed to read input file");
-
-    if (args.verify) {
-      reference_output = decode(input_data);
-    }
   }
 
   std::vector<uint8_t> run(const Args &args) override {
     return decode(input_data);
-  }
-
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    if (reference_output.empty()) {
-      throw std::runtime_error(
-          "Reference output not available for verification");
-    }
-    verify_lossless(output, reference_output);
   }
 
  private:
@@ -52,21 +40,25 @@ class SpngBench : public BenchmarkImplementation {
       throw std::runtime_error("spng_set_png_buffer failed");
     }
 
+    struct spng_ihdr ihdr;
+    if (spng_get_ihdr(ctx, &ihdr)) {
+      throw std::runtime_error("spng_get_ihdr failed");
+    }
+
     size_t out_size;
-    if (spng_decoded_image_size(ctx, SPNG_FMT_RGBA8, &out_size)) {
+    if (spng_decoded_image_size(ctx, SPNG_FMT_RGB8, &out_size)) {
       throw std::runtime_error("spng_decoded_image_size failed");
     }
 
-    std::vector<uint8_t> output(out_size);
-    if (spng_decode_image(ctx, output.data(), out_size, SPNG_FMT_RGBA8, 0)) {
+    std::vector<uint8_t> rgb_data(out_size);
+    if (spng_decode_image(ctx, rgb_data.data(), out_size, SPNG_FMT_RGB8, 0)) {
       throw std::runtime_error("spng_decode_image failed");
     }
 
-    return output;
+    return encode_ppm_rgb8(ihdr.width, ihdr.height, rgb_data);
   }
 
   std::vector<uint8_t> input_data;
-  std::vector<uint8_t> reference_output;
 };
 
 int main(int argc, char **argv) {

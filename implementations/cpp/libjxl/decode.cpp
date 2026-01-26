@@ -22,26 +22,17 @@ class LibJxlBench : public BenchmarkImplementation {
     input_data.resize(size);
     if (!file.read(reinterpret_cast<char *>(input_data.data()), size))
       throw std::runtime_error("Failed to read input file");
-
-    if (args.verify) {
-      reference_output = decode(input_data);
-    }
   }
 
   std::vector<uint8_t> run(const Args &args) override {
     return decode(input_data);
   }
 
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    if (reference_output.empty()) {
-      throw std::runtime_error(
-          "Reference output not available for verification");
-    }
-    verify_lossless(output, reference_output);
-  }
-
  private:
   std::vector<uint8_t> decode(const std::vector<uint8_t> &data) {
+    // TODO: Consider moving JxlResizableParallelRunnerMake to prepare() for
+    // better performance. Requires verifying the runner can be safely reused
+    // across multiple decode() calls with fresh decoders.
     auto runner = JxlResizableParallelRunnerMake(nullptr);
     auto dec = JxlDecoderMake(nullptr);
 
@@ -64,7 +55,7 @@ class LibJxlBench : public BenchmarkImplementation {
     JxlDecoderCloseInput(dec.get());
 
     JxlBasicInfo info;
-    JxlPixelFormat format = {4, JXL_TYPE_UINT8, JXL_LITTLE_ENDIAN, 0};
+    JxlPixelFormat format = {3, JXL_TYPE_UINT8, JXL_LITTLE_ENDIAN, 0};
 
     std::vector<uint8_t> output;
 
@@ -103,11 +94,10 @@ class LibJxlBench : public BenchmarkImplementation {
       }
     }
 
-    return output;
+    return encode_ppm_rgb8(info.xsize, info.ysize, output);
   }
 
   std::vector<uint8_t> input_data;
-  std::vector<uint8_t> reference_output;
 };
 
 int main(int argc, char **argv) {

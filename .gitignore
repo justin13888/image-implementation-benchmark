@@ -9,3 +9,5 @@ __pycache__/
 # Ephemeral data
 data/
 results/
+
+.DS_Store

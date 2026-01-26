@@ -13,5 +13,5 @@ path = "src/encode.rs"
 
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }
-image = "0.25.9"
+image = { version = "0.25.9", default-features = false, features = ["png", "pnm"] }
 anyhow = "1.0"

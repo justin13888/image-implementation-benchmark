@@ -2,6 +2,116 @@
 
 This repository contains benchmarks for various image format implementations, comparing performance across C, C++, and Rust libraries.
 
+## Getting Started
+
+### Prerequisites
+
+* [uv](https://docs.astral.sh/uv/) - Python package manager (install: `curl -LsSf https://astral.sh/uv/install.sh | sh`)
+* Rust toolchain ([rustup](https://rustup.rs/))
+* CMake, Clang, and development libraries
+* ImageMagick, hyperfine, wget, unzip
+
+  On Ubuntu/Debian:
+
+  ```bash
+  sudo apt install build-essential clang clang-format cmake ccache libmimalloc-dev \
+    libpng-dev libspng-dev libwebp-dev libavif-dev libdav1d-dev libjxl-dev \
+    pkg-config nasm imagemagick hyperfine wget unzip webp libavif-bin libjxl-tools
+  ```
+
+  On macOS:
+
+  ```bash
+  brew install clang-format cmake ccache mimalloc libpng libspng webp libavif dav1d jpeg-xl pkg-config nasm imagemagick hyperfine wget unzip
+  ```
+
+* Install forked ssimulacra2_rs that has PPM support:
+  
+  ```bash
+  # In any another directory
+  git clone https://github.com/justin13888/ssimulacra2.git
+  cd ssimulacra2/ssimulacra2_bin
+  cargo install --path . --no-default-features
+  ```
+
+### Setup
+
+1. **Install Python dependencies**:
+
+   ```bash
+   uv sync  # Creates .venv with pillow, imagehash, numpy
+   ```
+
+2. **Download benchmark datasets** (~3.5GB):
+
+   ```bash
+   ./setup_data.sh  # Downloads KODAK, DIV2K, generates pathological tests
+   
+   # Or setup specific datasets:
+   ./setup_data.sh kodak         # Only KODAK
+   ./setup_data.sh div2k         # Only DIV2K
+   ./setup_data.sh pathological  # Only Pathological tests
+   ./setup_data.sh reference     # Only Reference encodings
+   ```
+
+3. **Build implementations** (see individual implementation directories)
+
+### Running Benchmarks
+
+Use `./bench run` with a dataset. Always specify `--dataset` (default `test` has minimal coverage):
+
+```bash
+# Quick test (minimal sample, single iteration)
+./bench run --dataset kodak --sample 3 --quick
+
+# =====
+
+# Recommended if you have time: KODAK dataset (24 images, cache-resident)
+./bench run --dataset kodak
+
+# High-resolution testing (20 diverse 2K/4K images)
+./bench run --dataset div2k
+
+# Pathological/stress testing (4 synthetic images)
+./bench run --dataset pathological
+
+# Test on sample of 3 images from KODAK dataset
+./bench run --dataset kodak --sample 3
+
+# Run specific formats
+./bench run --dataset kodak --formats jpeg,avif
+
+# Decode-only benchmarks
+./bench run --dataset kodak --mode decode
+
+# Parallel benchmarks (all CPU cores)
+./bench run --dataset kodak --threads 0
+
+# Discard output I/O (pure compute)
+./bench run --dataset kodak --discard-output
+
+# Measure memory usage
+./bench run --dataset div2k --measure-memory
+
+# Compile all benchmarks
+./bench compile
+```
+
+### Cleanup
+
+```bash
+./bench clean
+```
+
+### Results
+
+Results are in `./results/<timestamp>/`:
+
+* `summary.md` - Human-readable tables
+* `raw.json` - Full Hyperfine output
+* `manifest.json` - Reproducibility manifest
+* `memory.csv` - Peak RSS (if `--measure-memory` used)
+
 ## Methodology
 
 ### Input Generation
@@ -50,11 +160,11 @@ Choose your dataset based on your benchmarking goals:
 
 We benchmark against three distinct use cases. The CLI accepts tier names directly (`--quality web-low`), and each binary maps these to format-specific arguments internally.
 
-| Tier         | Intent            | JPEG                | AVIF             | JXL           | WEBP         |
-| :----------- | :---------------- | :------------------ | :--------------- | :------------ | :----------- |
-| **web-low**  | Thumbnail/Preview | Q50, Baseline       | Q65, Speed 6     | d4.0, e7      | Q50, m4      |
-| **web-high** | Standard Delivery | Q80, Progressive    | Q65, Grain Synth | d1.0, e7      | Q75, m4      |
-| **archival** | High Fidelity     | Q95, No Subsampling | Q85, YUV444      | d0 (Lossless) | Lossless, z6 |
+| Tier         | Intent            | JPEG                | AVIF             | JXL               | WEBP         |
+| :----------- | :---------------- | :------------------ | :--------------- | :---------------- | :----------- |
+| **web-low**  | Thumbnail/Preview | Q50, Baseline       | Q65, Speed 6     | d4.0, e7          | Q50, m4      |
+| **web-high** | Standard Delivery | Q80, Progressive    | Q65, Grain Synth | d1.0, e7          | Q75, m4      |
+| **archival** | High Fidelity     | Q95, No Subsampling | Q85, YUV444      | d0, e9 (Lossless) | Lossless, z6 |
 
 ### Benchmarking Architecture
 
@@ -75,8 +185,7 @@ Every encoder/decoder implementation is compiled into a standalone binary implem
   --iterations <int> \
   --warmup <int> \
   --threads <int> \
-  [--discard] \
-  [--verify]
+  [--discard]
 ```
 
 | Flag           | Description                                                                                                                       |
@@ -85,7 +194,6 @@ Every encoder/decoder implementation is compiled into a standalone binary implem
 | `--warmup`     | Number of untimed iterations to run before measurement (default: 2). Warms branch predictors, allocators, and caches.             |
 | `--threads`    | Number of threads to use. Use `1` for single-threaded benchmarks, `0` for "use all available cores".                              |
 | `--discard`    | Discard output instead of writing to disk. Computes a CRC32 checksum to prevent dead code elimination. Isolates compute from I/O. |
-| `--verify`     | (Decode only) After the timed loop, verify output correctness. See "Verification Strategy" below.                                 |
 
 #### Memory Allocation Strategy
 
@@ -98,27 +206,11 @@ Memory is allocated and freed inside each iteration to simulate realistic per-re
 | C/C++    | mimalloc  | Linked explicitly via `-lmimalloc`                                                         |
 | Rust     | mimalloc  | Via `mimalloc = { version = "0.1", features = ["local_dynamic_tls"] }` as global allocator |
 
-For benchmarks where pure codec performance (excluding allocation) is desired, use the `--preallocate` flag, which reuses a single buffer across iterations.
+**Note:** We purposely include allocation time in the measurements to reflect real-world usage patterns. We do not support preallocation for the timebeing.
 
 #### Verification Strategy
 
-The `--verify` flag checks decoded output for correctness. Since different implementations may produce slightly different results (due to IDCT rounding, SIMD optimizations, or floating-point ordering), we use format-appropriate strategies:
-
-| Format Type                                     | Strategy                       | Threshold |
-| :---------------------------------------------- | :----------------------------- | :-------- |
-| **Lossless** (PNG, lossless WEBP, lossless JXL) | Exact byte match               | N/A       |
-| **Lossy** (JPEG, AVIF, lossy WEBP, lossy JXL)   | PSNR against reference decoder | ≥ 60dB    |
-
-**How it works:**
-
-1. Before the timed loop, the reference implementation decodes the image once and stores the result.
-2. After the timed loop completes, the test implementation's output is compared against this reference.
-3. For lossy formats, PSNR is computed. Values below 60dB indicate meaningful divergence (not just LSB rounding differences).
-4. Verification failures are logged with the measured PSNR value and the binary exits non-zero.
-
-**Note:** Verification adds overhead and runs outside the timed section. Use `--verify` during CI or validation runs, not during performance measurement.
-
-The threshold can be adjusted via `--verify-threshold <dB>` for formats or implementations with known acceptable divergence.
+The [benchmark harness](./bench) measures the visual similarity of the decoded output to the source based on the SSIMULACRA2 metric. While any choice of similarity metric is subject to bias, this is the validate that each benchmark implementation are producing output consistent to each other.
 
 #### Discard Checksum
 
@@ -215,81 +307,6 @@ Every benchmark run generates a `manifest.json` containing:
 
 This manifest is committed alongside results for full reproducibility.
 
-## Getting Started
-
-### Prerequisites
-
-* [uv](https://docs.astral.sh/uv/) - Python package manager (install: `curl -LsSf https://astral.sh/uv/install.sh | sh`)
-* Rust toolchain ([rustup](https://rustup.rs/))
-* CMake, Clang, and development libraries
-* ImageMagick, hyperfine, wget, unzip
-
-On Ubuntu/Debian:
-
-```bash
-sudo apt install build-essential clang clang-format cmake ccache libmimalloc-dev \
-  libpng-dev libspng-dev libwebp-dev libavif-dev libdav1d-dev libjxl-dev \
-  pkg-config nasm imagemagick hyperfine wget unzip webp libavif-bin libjxl-tools
-```
-
-### Setup
-
-1. **Install Python dependencies**:
-
-   ```bash
-   uv sync  # Creates .venv with pillow, imagehash, numpy
-   ```
-
-2. **Download benchmark datasets** (~3.5GB):
-
-   ```bash
-   ./setup_data.sh  # Downloads KODAK, DIV2K, generates pathological tests
-   ```
-
-3. **Build implementations** (see individual implementation directories)
-
-### Running Benchmarks
-
-Use `./bench` with a dataset. Always specify `--dataset` (default `test` has minimal coverage):
-
-```bash
-# Recommended: KODAK dataset (24 images, cache-resident)
-./bench --dataset kodak
-
-# High-resolution testing (20 diverse 2K/4K images)
-./bench --dataset div2k
-
-# Pathological/stress testing (4 synthetic images)
-./bench --dataset pathological
-
-# Run specific formats
-./bench --dataset kodak --formats jpeg,avif
-
-# Decode-only benchmarks
-./bench --dataset kodak --mode decode
-
-# Parallel benchmarks (all CPU cores)
-./bench --dataset kodak --threads 0
-
-# Discard output I/O (pure compute)
-./bench --dataset kodak --discard-output
-
-# With verification (slower)
-./bench --dataset kodak --verify
-
-# Measure memory usage
-./bench --dataset div2k --measure-memory
-```
-
-### Results
-
-Results are in `./results/<timestamp>/`:
-
-* `summary.md` - Human-readable tables
-* `raw.json` - Full Hyperfine output
-* `manifest.json` - Reproducibility manifest
-* `memory.csv` - Peak RSS (if `--measure-memory` used)
-
 ## Image Format Implementations
 
 We include modern formats and their most competitive implementations.
@@ -298,12 +315,13 @@ We include modern formats and their most competitive implementations.
 
 ### JPEG
 
-| Implementation    | Language | Notes                                                                                                          |
-| :---------------- | :------- | :------------------------------------------------------------------------------------------------------------- |
-| **libjpeg-turbo** | C        | Industry standard, SIMD-optimized                                                                              |
-| **mozjpeg**       | C        | *Optimized for compression ratio, not speed.* Included for completeness; expect slower encode times by design. |
-| **jpeg-decoder**  | Rust     | Pure Rust                                                                                                      |
-| **zune-jpeg**     | Rust     | Highly optimized pure Rust                                                                                     |
+| Implementation    | Language | Notes                                                                                                                       |
+| :---------------- | :------- | :-------------------------------------------------------------------------------------------------------------------------- |
+| **libjpeg-turbo** | C        | Industry standard, SIMD-optimized                                                                                           |
+| **mozjpeg**       | C        | *Optimized for compression ratio, not speed.* Included for completeness; expect slower encode times by design.              |
+| **jpeg-decoder**  | Rust     | Pure Rust JPEG decoder used in [image-rs](https://github.com/image-rs/image)                                                |
+| **zune-jpeg**     | Rust     | Pure-Rust JPEG decoder used in [zune-image](https://github.com/etemesi254/zune-image)                                       |
+| **jpeg-encoder**  | Rust     | Pure-Rust JPEG encoder used in [zune-image](https://github.com/etemesi254/zune-image). AVX2 (SIMD) feature flag is enabled. |
 
 ### PNG
 
@@ -329,15 +347,15 @@ We include modern formats and their most competitive implementations.
 | **dav1d**      | C/Asm    | Direct decoder (bypasses libavif wrapper) |
 | **rav1e**      | Rust     | Encoder                                   |
 
-<!-- | **rav1d**      | Rust     | Port of dav1d. Approaching stability as of late 2025. | -->
+<!-- | **rav1d**      | Rust     | Excluded due to API complexity and incomplete state. | -->
 
 ### JPEG XL
 
-| Implementation  | Language | Notes                         |
-| :-------------- | :------- | :---------------------------- |
-| **libjxl**      | C++      | Reference implementation      |
-| **jxl-oxide**   | Rust     | Pure Rust decoder             |
-| **zune-jpegxl** | Rust     | Optimized Rust implementation |
+| Implementation  | Language | Notes                    |
+| :-------------- | :------- | :----------------------- |
+| **libjxl**      | C++      | Reference implementation |
+| **jxl-oxide**   | Rust     | Pure Rust decoder        |
+| **zune-jpegxl** | Rust     | Optimized Rust encoder   |
 
 ## Limitations and Caveats
 
@@ -349,10 +367,12 @@ We include modern formats and their most competitive implementations.
 
 4. **mozjpeg design goals.** mozjpeg prioritizes compression ratio over speed. Its slower encode times are intentional, not a deficiency.
 
+5. **8-bit only pipeline.** All intermediate PPM files are normalized to 8-bit depth (max value 255). 16-bit images are not tested as they increase complexity of pipeline and do not provide meaningful extra data points.
+
 ## Contributing
 
 Contributions are welcome!
 
-* **New Implementations:** Must implement the standard CLI defined in "Benchmarking Architecture", including `--warmup`, `--threads`, `--verify`, and `--preallocate` flags.
+* **New Implementations:** Must implement the standard CLI defined in "Benchmarking Architecture".
 * **Optimization:** If you find flags or methods that improve a specific implementation, open a PR with benchmark results and updated manifest.
 * **Image Sets:** Proposals for additional pathological or domain-specific test images are welcome.

@@ -7,7 +7,6 @@ struct ZuneJpegBench;
 
 struct BenchContext {
     input_data: Vec<u8>,
-    reference_pixels: Option<Vec<u8>>,
 }
 
 impl BenchmarkImplementation for ZuneJpegBench {
@@ -18,18 +17,7 @@ impl BenchmarkImplementation for ZuneJpegBench {
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         let input_data = fs::read(&args.input).context("Failed to read input file")?;
 
-        let reference_pixels = if args.verify {
-            let img =
-                image::load_from_memory(&input_data).context("Failed to load reference image")?;
-            Some(img.to_rgb8().into_raw())
-        } else {
-            None
-        };
-
-        Ok(Box::new(BenchContext {
-            input_data,
-            reference_pixels,
-        }))
+        Ok(Box::new(BenchContext { input_data }))
     }
 
     fn run(&self, _args: &Args, context: &mut dyn std::any::Any) -> Result<Vec<u8>> {
@@ -37,24 +25,15 @@ impl BenchmarkImplementation for ZuneJpegBench {
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
         let mut decoder = JpegDecoder::new(std::io::Cursor::new(&ctx.input_data));
+        decoder
+            .decode_headers()
+            .context("Failed to decode headers")?;
+        let (w, h) = decoder
+            .dimensions()
+            .ok_or_else(|| anyhow::anyhow!("Failed to get dimensions"))?;
         let pixels = decoder.decode().context("Failed to decode JPEG")?;
-        Ok(pixels)
-    }
 
-    fn verify(&self, _args: &Args, context: &dyn std::any::Any, output: &[u8]) -> Result<()> {
-        let ctx = context
-            .downcast_ref::<BenchContext>()
-            .expect("Invalid context");
-
-        if let Some(ref reference) = ctx.reference_pixels {
-            let psnr = benchmark_harness::calculate_psnr(output, reference)?;
-            if psnr < 60.0 {
-                anyhow::bail!("PSNR too low: {psnr:.2} dB (threshold: 60.0 dB)");
-            }
-        } else {
-            anyhow::bail!("No reference data available for verification");
-        }
-        Ok(())
+        benchmark_harness::encode_ppm_rgb8(w as u32, h as u32, &pixels)
     }
 }
 

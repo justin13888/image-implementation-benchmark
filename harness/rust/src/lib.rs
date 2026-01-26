@@ -40,15 +40,6 @@ pub struct Args {
 
     #[arg(long)]
     pub discard: bool,
-
-    #[arg(long)]
-    pub verify: bool,
-
-    #[arg(long)]
-    pub preallocate: bool,
-
-    #[arg(long, default_value_t = 60.0)]
-    pub verify_threshold: f64,
 }
 
 pub trait BenchmarkImplementation {
@@ -61,12 +52,7 @@ pub trait BenchmarkImplementation {
     /// The core operation to benchmark (encode or decode).
     /// `context` is the object returned by `prepare`.
     /// Should return the output bytes.
-    /// If `discard` is true, the implementation SHOULD still produce the output data in memory so it can be checksummed.
     fn run(&self, args: &Args, context: &mut dyn std::any::Any) -> Result<Vec<u8>>;
-
-    /// Called to verify the output against a reference.
-    /// This is only called if `verify` is true.
-    fn verify(&self, args: &Args, context: &dyn std::any::Any, output: &[u8]) -> Result<()>;
 }
 
 pub fn main<I: BenchmarkImplementation>(impl_: I) -> Result<()> {
@@ -105,69 +91,78 @@ pub fn main<I: BenchmarkImplementation>(impl_: I) -> Result<()> {
         } else if !output.is_empty() {
             fs::write(&args.output, &output).context("Failed to write output")?;
         }
-
-        if args.verify {
-            impl_
-                .verify(&args, context.as_ref(), &output)
-                .context("Verification failed")?;
-        }
     }
 
     Ok(())
 }
 
-pub fn calculate_psnr(a: &[u8], b: &[u8]) -> Result<f64> {
-    if a.len() != b.len() {
-        anyhow::bail!("Image dimensions/size mismatch: {} vs {}", a.len(), b.len());
-    }
+/// Encodes RGB pixel data as PPM P6 format (8-bit per channel).
+///
+/// # Arguments
+/// * `width` - Image width in pixels
+/// * `height` - Image height in pixels
+/// * `rgb_data` - RGB pixel data (3 bytes per pixel, row-major order)
+///
+/// # Returns
+/// A vector containing the complete PPM file (header + pixel data)
+pub fn encode_ppm_rgb8(width: u32, height: u32, rgb_data: &[u8]) -> Result<Vec<u8>> {
+    use std::io::Write;
 
-    let mut mse = 0.0;
-    for i in 0..a.len() {
-        let diff = a[i] as f64 - b[i] as f64;
-        mse += diff * diff;
-    }
-    mse /= a.len() as f64;
-
-    if mse == 0.0 {
-        return Ok(f64::INFINITY);
-    }
-
-    Ok(10.0 * (255.0 * 255.0 / mse).log10())
-}
-
-/// Verify output for lossless formats (exact byte match)
-pub fn verify_lossless(output: &[u8], reference: &[u8]) -> Result<()> {
-    if output.len() != reference.len() {
+    let expected_size = (width as usize) * (height as usize) * 3;
+    if rgb_data.len() != expected_size {
         anyhow::bail!(
-            "Lossless verification failed: size mismatch ({} vs {} bytes)",
-            output.len(),
-            reference.len()
+            "RGB data size mismatch: expected {} bytes, got {}",
+            expected_size,
+            rgb_data.len()
         );
     }
 
-    if output != reference {
-        // Find first difference for debugging
-        for (i, (a, b)) in output.iter().zip(reference.iter()).enumerate() {
-            if a != b {
-                anyhow::bail!(
-                    "Lossless verification failed: byte mismatch at offset {i} (0x{a:02x} vs 0x{b:02x})"
-                );
-            }
-        }
-    }
-
-    Ok(())
+    let mut output = Vec::with_capacity(20 + rgb_data.len());
+    write!(&mut output, "P6\n{} {}\n255\n", width, height)?;
+    output.write_all(rgb_data)?;
+    Ok(output)
 }
 
-/// Verify output for lossy formats (PSNR-based)
-pub fn verify_lossy(output: &[u8], reference: &[u8], threshold_db: f64) -> Result<()> {
-    let psnr = calculate_psnr(output, reference)?;
+/// Encodes RGB pixel data as PPM P6 format (16-bit per channel).
+///
+/// # Arguments
+/// * `width` - Image width in pixels
+/// * `height` - Image height in pixels
+/// * `rgb_data` - RGB pixel data (u16 values, 3 values per pixel, row-major order)
+///
+/// # Returns
+/// A vector containing the complete PPM file (header + pixel data in big-endian)
+pub fn encode_ppm_rgb16(width: u32, height: u32, rgb_data: &[u16]) -> Result<Vec<u8>> {
+    use std::io::Write;
 
-    if psnr < threshold_db {
+    let expected_size = (width as usize) * (height as usize) * 3;
+    if rgb_data.len() != expected_size {
         anyhow::bail!(
-            "Lossy verification failed: PSNR {psnr:.2} dB below threshold {threshold_db:.2} dB"
+            "RGB data size mismatch: expected {} u16 values, got {}",
+            expected_size,
+            rgb_data.len()
         );
     }
 
-    Ok(())
+    let mut output = Vec::with_capacity(20 + rgb_data.len() * 2);
+    write!(&mut output, "P6\n{} {}\n65535\n", width, height)?;
+    for val in rgb_data {
+        output.write_all(&val.to_be_bytes())?;
+    }
+    Ok(output)
+}
+
+/// Decodes a PPM P6 file (8-bit per channel) to RGB pixel data.
+///
+/// # Arguments
+/// * `path` - Path to the PPM file
+///
+/// # Returns
+/// A tuple containing (width, height, rgb_data)
+pub fn decode_ppm_rgb8(path: &std::path::Path) -> Result<(u32, u32, Vec<u8>)> {
+    let input_data = fs::read(path).context("Failed to read input file")?;
+    let img = image::load_from_memory_with_format(&input_data, image::ImageFormat::Pnm)
+        .context("Failed to decode input PPM")?;
+    let rgb = img.to_rgb8();
+    Ok((rgb.width(), rgb.height(), rgb.to_vec()))
 }

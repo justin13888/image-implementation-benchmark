@@ -23,24 +23,11 @@ class Dav1dBench : public BenchmarkImplementation {
     if (!file.read(reinterpret_cast<char *>(avif_data.data()), size))
       throw std::runtime_error("Failed to read input file");
 
-    // We just store the AVIF data. The run loop uses libavif to decode it.
     input_data = std::move(avif_data);
-
-    if (args.verify) {
-      reference_output = decode(input_data);
-    }
   }
 
   std::vector<uint8_t> run(const Args &args) override {
     return decode(input_data);
-  }
-
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    if (reference_output.empty()) {
-      throw std::runtime_error(
-          "Reference output not available for verification");
-    }
-    verify_lossless(output, reference_output);
   }
 
  private:
@@ -70,19 +57,33 @@ class Dav1dBench : public BenchmarkImplementation {
       throw std::runtime_error("avifDecoderNextImage failed");
     }
 
-    // We have YUV in decoder->image.
-    // We need to return something.
-    // Let's just copy the Y plane.
+    // Convert to RGB
+    avifRGBImage rgb;
+    avifRGBImageSetDefaults(&rgb, decoder->image);
+    rgb.format = AVIF_RGB_FORMAT_RGB;
+    rgb.depth = 8;
 
-    size_t size = decoder->image->yuvRowBytes[0] * decoder->image->height;
-    std::vector<uint8_t> output(size);
-    memcpy(output.data(), decoder->image->yuvPlanes[0], size);
+    avifRGBImageAllocatePixels(&rgb);
+    avifResult conversionResult = avifImageYUVToRGB(decoder->image, &rgb);
+    if (conversionResult != AVIF_RESULT_OK) {
+      avifRGBImageFreePixels(&rgb);
+      throw std::runtime_error("avifImageYUVToRGB failed");
+    }
 
-    return output;
+    // Collect RGB pixels
+    std::vector<uint8_t> rgb_data;
+    rgb_data.reserve(rgb.width * rgb.height * 3);
+    for (uint32_t y = 0; y < rgb.height; ++y) {
+      uint8_t *row = rgb.pixels + (y * rgb.rowBytes);
+      rgb_data.insert(rgb_data.end(), row, row + (rgb.width * 3));
+    }
+
+    avifRGBImageFreePixels(&rgb);
+
+    return encode_ppm_rgb8(rgb.width, rgb.height, rgb_data);
   }
 
   std::vector<uint8_t> input_data;
-  std::vector<uint8_t> reference_output;
 };
 
 int main(int argc, char **argv) {

@@ -11,7 +11,7 @@ struct BenchContext {
     input_data: Vec<u8>,
     width: usize,
     height: usize,
-    _quality: Quality,
+    quality: Quality,
 }
 
 impl BenchmarkImplementation for ZuneJxlBench {
@@ -21,7 +21,9 @@ impl BenchmarkImplementation for ZuneJxlBench {
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         // Load raw image
-        let img = image::open(&args.input).context("Failed to open input image")?;
+        let input_data = std::fs::read(&args.input).context("Failed to read input file")?;
+        let img = image::load_from_memory_with_format(&input_data, image::ImageFormat::Pnm)
+            .context("Failed to decode input PPM")?;
         let width = img.width() as usize;
         let height = img.height() as usize;
         let input_data = img.to_rgb8().into_raw();
@@ -30,7 +32,7 @@ impl BenchmarkImplementation for ZuneJxlBench {
             input_data,
             width,
             height,
-            _quality: args.quality,
+            quality: args.quality,
         }))
     }
 
@@ -39,8 +41,15 @@ impl BenchmarkImplementation for ZuneJxlBench {
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
 
-        let options = EncoderOptions::new(ctx.width, ctx.height, ColorSpace::RGB, BitDepth::Eight);
-
+        // TODO: see if zune exposes distance parameter as something not quality setting.
+        let (quality, effort) = match ctx.quality {
+            Quality::WebLow => (50, 7),    // Approximate d4.0
+            Quality::WebHigh => (90, 7),   // Approximate d1.0
+            Quality::Archival => (100, 9), // lossless
+        };
+        let options = EncoderOptions::new(ctx.width, ctx.height, ColorSpace::RGB, BitDepth::Eight)
+            .set_effort(effort)
+            .set_quality(quality);
         let encoder = JxlSimpleEncoder::new(&ctx.input_data, options);
 
         // Create output buffer - estimate size needed
@@ -53,13 +62,6 @@ impl BenchmarkImplementation for ZuneJxlBench {
 
         output.truncate(bytes_written);
         Ok(output)
-    }
-
-    fn verify(&self, _args: &Args, _context: &dyn std::any::Any, output: &[u8]) -> Result<()> {
-        if output.is_empty() {
-            anyhow::bail!("Encoder produced empty output");
-        }
-        Ok(())
     }
 }
 

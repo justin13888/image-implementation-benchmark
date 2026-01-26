@@ -124,12 +124,6 @@ class LibAvifEncodeBench : public BenchmarkImplementation {
     return output_vec;
   }
 
-  void verify(const Args &args, const std::vector<uint8_t> &output) override {
-    if (output.empty()) {
-      throw std::runtime_error("Encoder produced empty output");
-    }
-  }
-
  private:
   std::vector<uint8_t> input_data;
   int width;
