@@ -103,9 +103,11 @@ class Dataset:
 def _get_div2k_files() -> list[str]:
     p = Path("data/div2k/selected.txt")
     if p.exists():
-        return p.read_text().splitlines()
-    # If file doesn't exist, we return empty list. validation will fail later if needed.
-    return ["data/div2k/missing_selected.txt"]
+        lines = p.read_text().splitlines()
+        return [
+            f"data/div2k/DIV2K_train_HR/{name}" for name in lines if name.strip()
+        ]
+    return []
 
 
 DATASETS: Dict[str, Dataset] = {
@@ -529,10 +531,32 @@ class CompileArgs(BaseModel):
     pass
 
 
+class SetupArgs(BaseModel):
+    """Download and verify benchmark datasets."""
+
+    dataset: Annotated[
+        Optional[DatasetId],
+        tyro.conf.EnumChoicesFromValues,
+        tyro.conf.arg(aliases=["-d"]),
+        Field(description="Dataset to set up (default: all)"),
+    ] = None
+    force: Annotated[
+        bool,
+        tyro.conf.FlagCreatePairsOff,
+        Field(description="Force re-download/regenerate even if already present"),
+    ] = False
+    verify_only: Annotated[
+        bool,
+        tyro.conf.FlagCreatePairsOff,
+        Field(description="Only verify integrity, do not download or regenerate"),
+    ] = False
+
+
 CliEntry = Union[
     Annotated[RunArgs, tyro.conf.subcommand(name="run")],
     Annotated[CleanArgs, tyro.conf.subcommand(name="clean")],
     Annotated[CompileArgs, tyro.conf.subcommand(name="compile")],
+    Annotated[SetupArgs, tyro.conf.subcommand(name="setup")],
 ]
 
 

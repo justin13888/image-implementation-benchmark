@@ -62,14 +62,20 @@ This repository contains benchmarks for various image format implementations, co
 2. **Download benchmark datasets** (~3.5GB):
 
    ```bash
-   ./setup_data.sh  # Downloads KODAK, DIV2K, generates pathological tests
-   
-   # Or setup specific datasets:
-   ./setup_data.sh kodak         # Only KODAK
-   ./setup_data.sh div2k         # Only DIV2K
-   ./setup_data.sh pathological  # Only Pathological tests
-   ./setup_data.sh reference     # Only Reference encodings
+   ./bench setup              # All datasets (KODAK, DIV2K, pathological, test)
+
+   # Or set up specific datasets:
+   ./bench setup -d kodak         # Only KODAK
+   ./bench setup -d div2k         # Only DIV2K
+   ./bench setup -d pathological  # Only pathological tests
+   ./bench setup -d test          # Only test image
+
+   # Other options:
+   ./bench setup --force          # Force re-download/regenerate
+   ./bench setup --verify-only    # Check integrity only
    ```
+
+   > **Note:** `./bench run` automatically sets up required datasets on first use, so an explicit `./bench setup` step is optional.
 
 3. **Build implementations** (see individual implementation directories)
 

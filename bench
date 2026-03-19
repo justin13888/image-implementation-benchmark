@@ -12,8 +12,8 @@ import traceback
 import tyro
 from colorama import init
 
-from bench_lib.models import CliEntry, CleanArgs, CompileArgs, RunArgs
-from bench_lib.runner import run, run_clean, run_compile
+from bench_lib.models import CliEntry, CleanArgs, CompileArgs, RunArgs, SetupArgs
+from bench_lib.runner import run, run_clean, run_compile, run_setup
 
 init(autoreset=True)
 
@@ -28,6 +28,10 @@ if __name__ == "__main__":
 
         elif isinstance(args, RunArgs):
             run(args)
+
+        elif isinstance(args, SetupArgs):
+            run_setup(args)
+
         else:
             print("Error: Unknown command")
             sys.exit(1)

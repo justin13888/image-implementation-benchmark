@@ -1,4 +1,13 @@
 #!/bin/bash
+# DEPRECATED: This script is superseded by `./bench setup`.
+# Data setup now happens automatically on `./bench run`, or explicitly via:
+#   ./bench setup              # all datasets
+#   ./bench setup -d kodak     # specific dataset
+#   ./bench setup --force      # force re-download/regenerate
+#   ./bench setup --verify-only  # integrity check only
+# This script remains functional but will be removed in a future release.
+echo "Warning: setup_data.sh is deprecated. Use './bench setup' instead." >&2
+echo "" >&2
 set -e
 # set -x
 mkdir -p data data/kodak data/div2k data/pathological

@@ -40,6 +40,7 @@ from bench_lib.models import (
     PPMImageFormat,
     QualityTier,
     RunArgs,
+    SetupArgs,
     find_implementation_by_name,
     is_format_lossless,
 )
@@ -62,29 +63,18 @@ def get_dataset_files(dataset_name: DatasetId) -> list[str]:
     """
     Get list of files for a given dataset.
 
-    Guarantees that all files exist, otherwise exits with error message.
+    Automatically ensures the dataset is ready (downloads/generates if needed).
     """
     if dataset_name not in DATASETS:
         raise ValueError(f"Unknown dataset: {dataset_name}")
 
-    dataset = DATASETS[dataset_name]
-    files = dataset.files
-
-    # Validate files exist
     if dataset_name not in DATASET_FILES_CHECKED:
-        missing = [f for f in files if not os.path.exists(f)]
-        if missing:
-            print(f"Error: Dataset '{dataset_name}' files not found:")
-            for f in missing[:5]:  # Show first 5
-                print(f"  - {f}")
-            if len(missing) > 5:
-                print(f"  ... and {len(missing) - 5} more")
-            print("\nRun setup_data.sh to download datasets.")
-            sys.exit(1)
+        from bench_lib.data_setup import ensure_dataset
 
+        ensure_dataset(dataset_name)
         DATASET_FILES_CHECKED.add(dataset_name)
 
-    return files
+    return DATASETS[dataset_name].files
 
 
 def get_input_files(
@@ -669,6 +659,26 @@ def run_compile(args: CompileArgs):
             build_project(impl)
 
     pass
+
+
+def run_setup(args: SetupArgs) -> None:
+    """Run dataset setup or verification."""
+    from bench_lib.data_setup import ensure_all_datasets, ensure_dataset, verify_dataset
+
+    if args.verify_only:
+        if args.dataset is not None:
+            ok = verify_dataset(args.dataset)
+            if not ok:
+                sys.exit(1)
+        else:
+            all_ok = all(verify_dataset(d) for d in DatasetId)
+            if not all_ok:
+                sys.exit(1)
+    else:
+        if args.dataset is not None:
+            ensure_dataset(args.dataset, force=args.force)
+        else:
+            ensure_all_datasets(force=args.force)
 
 
 def run_clean(args: CleanArgs):
