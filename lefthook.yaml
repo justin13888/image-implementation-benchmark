@@ -1,0 +1,9 @@
+pre-commit:
+  commands:
+    check:
+      run: just pre-commit
+
+pre-push:
+  commands:
+    test:
+      run: just test

@@ -10,6 +10,8 @@ This repository contains benchmarks for various image format implementations, co
 * Rust toolchain ([rustup](https://rustup.rs/))
 * CMake, Clang, and development libraries
 * ImageMagick, hyperfine, wget, unzip
+* [just](https://github.com/casey/just) — task runner
+* [lefthook](https://github.com/evilmartians/lefthook) — git hooks manager
 
   On Ubuntu/Debian:
 
@@ -33,6 +35,21 @@ This repository contains benchmarks for various image format implementations, co
   cd ssimulacra2/ssimulacra2_bin
   cargo install --path . --no-default-features
   ```
+
+### Development Setup
+
+1. **Install git hooks**:
+
+   ```bash
+   lefthook install
+   ```
+
+2. **Available recipes**:
+   - `just fix` — format + lint fix (run before committing)
+   - `just check` — CI-style read-only checks
+   - `just test` — run all tests
+
+   The pre-commit hook runs `just pre-commit` automatically on `git commit`. The pre-push hook runs `just test` on `git push`.
 
 ### Setup
 
@@ -376,3 +393,5 @@ Contributions are welcome!
 * **New Implementations:** Must implement the standard CLI defined in "Benchmarking Architecture".
 * **Optimization:** If you find flags or methods that improve a specific implementation, open a PR with benchmark results and updated manifest.
 * **Image Sets:** Proposals for additional pathological or domain-specific test images are welcome.
+* Run `just fix` before committing, or let the pre-commit hook handle it automatically.
+* CI runs `just check` and `just test` on all PRs.
