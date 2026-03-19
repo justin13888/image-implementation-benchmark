@@ -3,13 +3,12 @@
 Sanity test for plot generation in bench.generate_summary.
 
 This script constructs a small hyperfine-like JSON file and calls
-bench.generate_summary to verify the creation of separate plot files.
+bench_lib.summary.generate_summary to verify the creation of separate plot files.
 """
 
 import os
 import sys
 import json
-import types
 
 # If we're not running in a virtualenv, attempt to re-exec using `.venv/bin/python`
 if not os.environ.get("VIRTUAL_ENV"):
@@ -28,16 +27,12 @@ if not os.environ.get("VIRTUAL_ENV"):
             "Warning: Not running in a virtualenv. If you want tests to use a venv, create one at .venv and re-run the script."
         )
 
-# Load `bench` script (file without .py extension) as a module by reading its
-# source and executing it in a fresh module namespace.
-bench_path = os.path.join(os.path.dirname(__file__), "..", "bench")
-bench_path = os.path.abspath(bench_path)
-bench = types.ModuleType("bench")
-with open(bench_path, "r") as bf:
-    source = bf.read()
-exec(compile(source, bench_path, "exec"), bench.__dict__)
-sys.modules["bench"] = bench
-from bench import generate_summary  # noqa: E402
+# Add repo root to sys.path so bench_lib can be imported
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
+from bench_lib.summary import generate_summary  # noqa: E402
 
 
 def main():
@@ -70,7 +65,7 @@ def main():
         json.dump(data, f)
 
     # Call generate_summary which should create PNGs and summary.md
-    generate_summary(tmpdir, raw_json_path)
+    generate_summary(tmpdir, raw_json_path, None)
 
     # Check result files
     print("Directory contents:")

@@ -1,0 +1,700 @@
+"""Dataset/input management, benchmark execution, and metrics collection."""
+
+import csv
+import datetime
+import glob
+import json
+import os
+import platform
+import random
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from collections.abc import Sequence
+from typing import Dict, Optional, Set
+
+import humanize
+from colorama import Fore, Style
+from PIL import Image as PILImage
+
+from bench_lib.build import build_project, build_projects
+from bench_lib.models import (
+    DATASETS,
+    FORMAT_EXT_MAP,
+    IMPLEMENTATIONS,
+    NULL_IMPLEMENTATIONS,
+    REFERENCE_ENCODERS,
+    BenchList,
+    BenchmarkMetrics,
+    BenchmarkMode,
+    BenchmarkTask,
+    BenchmarkType,
+    CleanArgs,
+    CompileArgs,
+    DatasetId,
+    ImageFormat,
+    ImageFormats,
+    PPMImageFormat,
+    QualityTier,
+    RunArgs,
+    find_implementation_by_name,
+    is_format_lossless,
+)
+from bench_lib.summary import generate_summary
+from bench_lib.system_info import (
+    get_compiler_versions,
+    get_library_versions,
+    get_system_info,
+)
+
+DATASET_FILES_CHECKED: Set[str] = set()
+
+# Cache input file list for re-use
+INPUT_FILES_CACHE: Dict[
+    tuple[DatasetId, ImageFormats, Optional[int]], Sequence[tuple[str, str]]
+] = {}
+
+
+def get_dataset_files(dataset_name: DatasetId) -> list[str]:
+    """
+    Get list of files for a given dataset.
+
+    Guarantees that all files exist, otherwise exits with error message.
+    """
+    if dataset_name not in DATASETS:
+        raise ValueError(f"Unknown dataset: {dataset_name}")
+
+    dataset = DATASETS[dataset_name]
+    files = dataset.files
+
+    # Validate files exist
+    if dataset_name not in DATASET_FILES_CHECKED:
+        missing = [f for f in files if not os.path.exists(f)]
+        if missing:
+            print(f"Error: Dataset '{dataset_name}' files not found:")
+            for f in missing[:5]:  # Show first 5
+                print(f"  - {f}")
+            if len(missing) > 5:
+                print(f"  ... and {len(missing) - 5} more")
+            print("\nRun setup_data.sh to download datasets.")
+            sys.exit(1)
+
+        DATASET_FILES_CHECKED.add(dataset_name)
+
+    return files
+
+
+def get_input_files(
+    dataset_name: DatasetId,
+    format: ImageFormats,
+    quality: QualityTier,
+    limit: Optional[int] = None,
+) -> Sequence[tuple[str, str]]:
+    """
+    Get list of input files for a given dataset, benchmark type.
+
+    Returns a sequence of (input_path, source_path) tuples, where:
+    - input_path: Path to the input file for the benchmark.
+    - source_path: Path to the original source file (for quality comparison).
+
+    Pre-generates input files for benchmark type if necessary.
+    """
+
+    if (dataset_name, format, limit) in INPUT_FILES_CACHE:
+        return INPUT_FILES_CACHE[(dataset_name, format, limit)]
+
+    # Get all files for the dataset
+    dataset_files = get_dataset_files(dataset_name)
+
+    # Sample files if limit is requested
+    if limit is not None and limit < len(dataset_files):
+        # We use a fixed seed based on the dataset name to ensure that
+        # the same subset is selected for both encode/decode passes within runs
+        # if the file list is stable.
+        rnd = random.Random(f"{dataset_name}_{limit}")
+        dataset_files = rnd.sample(dataset_files, limit)
+
+    # input_files: (input_file, output_file)
+    input_files: list[tuple[str, str]] = []
+    target_ext = FORMAT_EXT_MAP[format]
+
+    for f in dataset_files:
+        if f.lower().endswith(f".{target_ext}"):
+            # Dataset file already in required format
+            input_files.append((f, f))
+        else:
+            # Determine target file name
+            base_path = os.path.splitext(f)[0]
+            if is_format_lossless(format):
+                target_file = f"{base_path}.{target_ext}"
+            else:
+                target_file = f"{base_path}_{quality.value}.{target_ext}"
+
+            # If target file exists, we can use it
+            if os.path.exists(target_file):
+                input_files.append((target_file, f))
+            else:
+                # Need to convert dataset file into required format
+                print(f"Generating {target_file} from {f}...")
+
+                # 1. Convert to PPM
+                intermediate_ppm = f"{base_path}.ppm"
+                if not os.path.exists(intermediate_ppm):
+                    # Use ImageMagick to convert to 8-bit P6 PPM
+                    # We force 8-bit depth as not all implementations handle 16-bit PPM
+                    subprocess.run(
+                        ["convert", f, "-depth", "8", intermediate_ppm],
+                        check=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+
+                # 2. Encode using reference encoder
+                ref_impl_name = REFERENCE_ENCODERS.get(format)
+                if not ref_impl_name:
+                    raise RuntimeError(f"No reference encoder defined for {format}")
+
+                ref_impl = find_implementation_by_name(ref_impl_name)
+                if not ref_impl:
+                    raise RuntimeError(f"Reference encoder {ref_impl_name} not found")
+
+                # Ensure reference implementation is built
+                # Note: We rely on the user having built everything or `run` building it.
+                # If we are in `run`, builds happen before this.
+                if not os.path.exists(ref_impl.bin):
+                    # Try to build it on demand?
+                    build_project(ref_impl)
+
+                # Run encoder
+                subprocess.run(
+                    [
+                        ref_impl.bin,
+                        "--input",
+                        intermediate_ppm,
+                        "--output",
+                        target_file,
+                        "--quality",
+                        quality.value,
+                        "--iterations",
+                        "1",
+                        "--warmup",
+                        "0",
+                        "--threads",
+                        "0",
+                    ],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,  # Capture stderr to avoid spam, unless error
+                )
+
+                input_files.append((target_file, f))
+    # Verify all input files exist
+    missing = [f_path for f_path, _ in input_files if not os.path.exists(f_path)]
+    if missing:
+        raise RuntimeError(
+            f"Some input files not found {len(missing)} for '{dataset_name}': {','.join(missing[:5])}"
+        )
+
+    INPUT_FILES_CACHE[(dataset_name, format, limit)] = input_files
+    return input_files
+
+
+def build_bench_list(
+    type: BenchmarkType,
+    format: ImageFormat,
+    dataset: DatasetId,
+    quality: QualityTier,
+    args: RunArgs,
+) -> BenchList:
+    """Construct list of benchmark commands to run."""
+    from itertools import chain
+
+    # Construct list of implementations to run
+    # For each format, we get the null implementation + implementations that support that format, together filtered by type
+    implementations = chain(
+        (impl for impl in NULL_IMPLEMENTATIONS if impl.type == type),
+        (
+            impl
+            for impl in IMPLEMENTATIONS
+            if impl.format == format and impl.type == type
+        ),
+    )
+
+    # Construct bench list
+    benches: BenchList = []
+    for impl in implementations:
+        # Verify binary exists
+        if not os.path.exists(impl.bin):
+            raise RuntimeError(f"Error: Binary not found: {impl.bin}")
+
+        # Determine correct input format
+        match impl.type:
+            case BenchmarkType.DECODE:
+                input_format = format
+            case BenchmarkType.ENCODE:
+                input_format = PPMImageFormat.PPM
+            case _:
+                raise ValueError(f"Unknown implementation type: {impl.type}")
+
+        for input_file, source_file in get_input_files(
+            dataset, input_format, quality, args.sample
+        ):
+            input_path = input_file
+
+            bench = BenchmarkTask(
+                impl=impl,
+                quality=quality,
+                input_path=input_path,
+                source_path=source_file,
+                iterations=args.iterations,
+                warmup=args.warmup,
+                threads=args.threads,
+                discard_output=args.discard_output,
+                measure_memory=args.measure_memory,
+                pin_cores=args.pin_cores,
+            )
+            benches.append(bench)
+
+    return benches
+
+
+def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetrics]:
+    """Generate file size and visual quality metrics."""
+    print(f"{Fore.BLUE}{'=' * 70}\nCOLLECTING METRICS\n{'=' * 70}\n")
+
+    temp_dir = tempfile.mkdtemp()
+    print(f"Temporary outputs stored in: {temp_dir}")
+
+    metrics: list[BenchmarkMetrics] = []
+
+    for i, task in enumerate(benches):
+        print(
+            f"[{i + 1}/{len(benches)}] Processing ({task.name()} >>>> ",
+            end=" ",
+            flush=True,
+        )
+
+        identifier = task.identifier()
+        format_ext = task.output_ext()
+        if task.impl.format is None or format_ext is None:
+            print(
+                f"{Fore.BLUE}Skipping collecting metrics for {task.name()} due to null format...{Style.RESET_ALL}"
+            )
+            continue
+
+        format_ext_str = FORMAT_EXT_MAP[format_ext]
+        output_path = os.path.join(temp_dir, f"{identifier}.{format_ext_str}")
+
+        # Obtain metric
+        try:
+            # Run implementation
+            start_time = time.time()
+            subprocess.run(
+                task.cmd(output_path),
+                shell=True,
+                check=True,
+            )
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+
+            # Verify implementation generated output
+            if not os.path.exists(output_path):
+                raise RuntimeError(
+                    f"Implementation {task.name()} was ran to collect metrics but output file not found at: {output_path}{Style.RESET_ALL}"
+                )
+
+            # 1. Get file size
+            try:
+                filesize = os.path.getsize(output_path)
+            except Exception:
+                filesize = 0
+
+            # 2. Run (modified) ssimulacra2_rs binary.
+            score = -1.0
+            res = subprocess.run(
+                ["ssimulacra2_rs", "image", task.source_path, output_path],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            out_str = res.stdout.strip()  # Output is like "Score: 87.432321"
+
+            if re.fullmatch(r"^Score: -?\d+\.\d+$", out_str):
+                score = float(out_str.split(": ")[1])
+            else:
+                raise ValueError(f"Unable to parse SSIMULACRA 2 output: `{out_str}`")
+
+            # 3. Get image dimensions from source file
+            width, height, megapixels, bpp = 0, 0, 0.0, 0.0
+            try:
+                with PILImage.open(task.source_path) as img:
+                    width, height = img.size
+                    megapixels = (width * height) / 1_000_000
+                    if width > 0 and height > 0 and filesize > 0:
+                        bpp = (filesize * 8) / (width * height)
+            except Exception as img_err:
+                print(
+                    f"{Fore.YELLOW}Warning: Could not get dimensions: {img_err}{Style.RESET_ALL}"
+                )
+
+            print(
+                f"{Fore.GREEN}✓ Size: {humanize.naturalsize(filesize, binary=True)}, Score: {score:.2f}, bpp: {bpp:.3f} {Style.RESET_ALL}(took {elapsed_time:.1f} s)"
+            )
+
+            metrics.append(
+                BenchmarkMetrics(
+                    name=task.name(),
+                    impl=task.impl.name,
+                    quality=task.quality.value,
+                    input_path=task.input_path,
+                    source_path=task.source_path,
+                    filesize=filesize,
+                    ssimulacra2=score,
+                    error=None,
+                    type=task.impl.type.value,
+                    format=task.impl.format.value,
+                    width=width,
+                    height=height,
+                    megapixels=megapixels,
+                    bpp=bpp,
+                )
+            )
+        except Exception as e:
+            print(f"{Fore.RED}✗ Error running {task.name()}: {e}")
+            if isinstance(e, subprocess.CalledProcessError):
+                if e.stderr:
+                    print(f"{Fore.YELLOW}Standard Error Output:")
+                    print(f"{Fore.WHITE}{e.stderr.strip()}")
+                if e.stdout:
+                    print(f"{Fore.YELLOW}Standard Output (at time of failure):")
+                    print(f"{Fore.WHITE}{e.stdout.strip()}")
+
+            metrics.append(
+                BenchmarkMetrics(
+                    name=task.name(),
+                    impl=task.impl.name,
+                    quality=task.quality.value,
+                    input_path=task.input_path,
+                    source_path=task.source_path,
+                    filesize=0,
+                    ssimulacra2=-1.0,
+                    error=str(e),
+                    type=task.impl.type.value,
+                    format=task.impl.format.value,
+                    width=0,
+                    height=0,
+                    megapixels=0.0,
+                    bpp=0.0,
+                )
+            )
+
+    return metrics
+
+
+def measure_memory(result_dir: str, commands: list[str], command_names: list[str]):
+    """Measure peak memory usage using /usr/bin/time."""
+
+    print("\n" + "=" * 70)
+    print("MEASURING MEMORY USAGE")
+    print("=" * 70)
+    print()
+
+    memory_data = []
+
+    for cmd, name in zip(commands, command_names):
+        print(f"Measuring: {name}")
+
+        # Remove any core pinning wrapper for clean memory measurement
+        cmd_parts = cmd.split()
+        system = platform.system()
+
+        # Remove Linux 'taskset' wrapper
+        if system == "Linux" and "taskset" in cmd_parts:
+            try:
+                idx = cmd_parts.index("taskset")
+                # Find the next argument after core list (e.g., 'taskset -c 0-3 ...')
+                # Accept both '-c 0-3' and '-c', '0-3'
+                if cmd_parts[idx + 1] == "-c":
+                    # taskset -c 0-3 ...
+                    cmd_parts = cmd_parts[idx + 3 :]
+                else:
+                    # taskset 0-3 ...
+                    cmd_parts = cmd_parts[idx + 2 :]
+
+                cmd = " ".join(cmd_parts)
+            except Exception:
+                pass
+
+        # Remove macOS 'cpuset' wrapper (if ever used)
+        elif system == "Darwin" and "cpuset" in cmd_parts:
+            try:
+                idx = cmd_parts.index("cpuset")
+                # cpuset -l 0-3 -- ...
+                if cmd_parts[idx + 1] == "-l":
+                    # Find '--' separator
+                    if "--" in cmd_parts:
+                        sep = cmd_parts.index("--", idx)
+                        cmd_parts = cmd_parts[sep + 1 :]
+                    else:
+                        cmd_parts = cmd_parts[idx + 3 :]
+                else:
+                    cmd_parts = cmd_parts[idx + 1 :]
+                cmd = " ".join(cmd_parts)
+            except Exception:
+                pass
+
+        # On Windows, skip pinning (no-op)
+        # (No wrapper expected)
+
+        # Run with /usr/bin/time -v (Linux), /usr/bin/time -l (macOS), warn on Windows
+        if system == "Linux":
+            time_cmd = ["/usr/bin/time", "-v"] + cmd.split()
+        elif system == "Darwin":
+            time_cmd = ["/usr/bin/time", "-l"] + cmd.split()
+        else:
+            print("  Warning: Memory measurement not supported on this platform.")
+            memory_data.append({"name": name, "peak_rss_mb": 0, "peak_rss_kb": 0})
+            continue
+
+        try:
+            result = subprocess.run(
+                time_cmd, capture_output=True, text=True, timeout=120
+            )
+            stderr = result.stderr
+            # Linux: Parse 'Maximum resident set size (kbytes): NNNN'
+            if system == "Linux":
+                rss_match = re.search(
+                    r"Maximum resident set size \(kbytes\): (\d+)", stderr
+                )
+                peak_rss_kb = int(rss_match.group(1)) if rss_match else 0
+                peak_rss_mb = peak_rss_kb / 1024.0
+            # macOS: Parse 'maximum resident set size' (bytes)
+            elif system == "Darwin":
+                rss_match = re.search(r"maximum resident set size\s+(\d+)", stderr)
+                peak_rss_kb = int(rss_match.group(1)) / 1024.0 if rss_match else 0
+                peak_rss_mb = peak_rss_kb / 1024.0
+            else:
+                peak_rss_kb = 0
+                peak_rss_mb = 0
+
+            memory_data.append(
+                {"name": name, "peak_rss_mb": peak_rss_mb, "peak_rss_kb": peak_rss_kb}
+            )
+
+        except subprocess.TimeoutExpired:
+            print(f"  Warning: Timeout measuring {name}")
+            memory_data.append({"name": name, "peak_rss_mb": 0, "peak_rss_kb": 0})
+        except Exception as e:
+            print(f"  Warning: Error measuring {name}: {e}")
+            memory_data.append({"name": name, "peak_rss_mb": 0, "peak_rss_kb": 0})
+
+    # Write CSV
+    csv_path = f"{result_dir}/memory.csv"
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["name", "peak_rss_mb", "peak_rss_kb"])
+        writer.writeheader()
+        writer.writerows(memory_data)
+
+    print(f"\n✓ Memory data written to {csv_path}")
+
+
+def run(args: RunArgs):
+    """Execute benchmarks using hyperfine."""
+    formats = args.formats or list(ImageFormat)
+
+    # Build projects
+    if not args.skip_build:
+        build_projects(formats)
+    else:
+        print("Skipping build step (--skip-build)...")
+
+    # Create results directory
+    os.makedirs("results", exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    result_dir = f"results/{timestamp}"
+    os.makedirs(result_dir, exist_ok=True)
+
+    print("=" * 70)
+    print("COLLECTING BENCHMARK COMMANDS")
+    print("=" * 70)
+
+    # Generate manifest
+    manifest = {
+        **get_system_info(),
+        "compiler": get_compiler_versions(),
+        "libraries": get_library_versions(),
+        "allocator": "mimalloc 2.1.2",
+        "benchmark_config": {
+            "formats": formats,
+            "mode": args.mode,
+            "dataset": args.dataset,
+            "threads": args.threads,
+            "iterations": args.iterations,
+            "warmup": args.warmup,
+            "quality": args.quality,
+            "discard_output": args.discard_output,
+            "pin_cores": args.pin_cores,
+        },
+    }
+
+    with open(f"{result_dir}/manifest.json", "w") as f:
+        json.dump(manifest, f, indent=2)
+
+    print(f"\n✓ Manifest written to {result_dir}/manifest.json")
+
+    benches: BenchList = []
+    quality = args.get_quality()
+
+    types_to_run = []
+    if args.mode in (BenchmarkMode.ENCODE, BenchmarkMode.BOTH):
+        types_to_run.append(BenchmarkType.ENCODE)
+    if args.mode in (BenchmarkMode.DECODE, BenchmarkMode.BOTH):
+        types_to_run.append(BenchmarkType.DECODE)
+    for bench_type in types_to_run:
+        for format in formats:
+            benches += build_bench_list(bench_type, format, args.dataset, quality, args)
+
+    if not benches:
+        print("\nError: No benchmarks to run!")
+        sys.exit(1)
+
+    json_output = None
+    if not args.no_benchmarks:
+        print(f"\n✓ {len(benches)} benchmark(s) ready to run\n")
+
+        # Run hyperfine
+        print("=" * 70)
+        print("RUNNING BENCHMARKS")
+        print("=" * 70)
+        print()
+
+        json_output = f"{result_dir}/raw.json"
+        hyperfine_cmd: list[str]
+        if not args.quick:
+            hyperfine_cmd = [
+                "hyperfine",
+                "--warmup",
+                "3",
+                "--min-runs",
+                "10",
+                "--export-json",
+                json_output,
+            ]
+        else:
+            hyperfine_cmd = [
+                "hyperfine",
+                "--warmup",
+                "0",
+                "--min-runs",
+                "1",
+                "--max-runs",
+                "1",
+                "--export-json",
+                json_output,
+            ]
+
+        # Add command names for better output
+        for task in benches:
+            hyperfine_cmd.extend(["--command-name", task.name()])
+
+        hyperfine_cmd.extend([task.cmd("/dev/null") for task in benches])
+
+        # --show-output if debug
+        if args.debug:
+            hyperfine_cmd.append("--show-output")
+
+        try:
+            subprocess.run(hyperfine_cmd, check=True)
+        except FileNotFoundError:
+            print("\nError: 'hyperfine' not found")
+            sys.exit(1)
+        except subprocess.CalledProcessError:
+            print("\nError: Benchmark execution failed")
+            print(f"Test command: {' '.join(hyperfine_cmd)}")
+            sys.exit(1)
+
+    # Collect metrics
+    metrics = None
+    if not args.no_metrics:
+        metrics = generate_metrics(benches, result_dir)
+        # Save metrics
+        metrics_path = f"{result_dir}/metrics.json"
+        with open(metrics_path, "w") as f:
+            json.dump(metrics, f, indent=2)
+
+        print(f"\n✓ Metrics saved to {metrics_path}")
+
+    # Generate summary
+    generate_summary(result_dir, json_output, metrics)
+
+    # Measure memory if requested
+    if args.measure_memory:
+        # TODO: Implement memory measurement
+        # measure_memory(
+        #     result_dir, [cmd for _, cmd in benches], [name for name, _ in benches]
+        # )
+        pass
+
+    print("\n" + "=" * 70)
+    print("RESULTS")
+    print("=" * 70)
+    print(f"\nResults saved to: {result_dir}/")
+    print("  - manifest.json  : Reproducibility metadata")
+    print("  - raw.json       : Full hyperfine output")
+    if not args.no_metrics:
+        print("  - metrics.json   : File sizes and SSIMULACRA 2 scores")
+    if not args.no_benchmarks:
+        print("  - summary.md     : Human-readable tables")
+        if args.measure_memory:
+            print("  - memory.csv     : Peak memory usage")
+    print()
+
+
+def run_compile(args: CompileArgs):
+    """Compile the project."""
+    print("🔨 Compiling project...")
+    if not args.implementations:
+        # Build all implementations
+        formats = list(ImageFormat)
+        build_projects(formats)
+    else:
+        for name in args.implementations:
+            # Find implementation by name
+            impl = find_implementation_by_name(name)
+            if not impl:
+                raise RuntimeError(f"\nError: Implementation '{name}' not found")
+            build_project(impl)
+
+    pass
+
+
+def run_clean(args: CleanArgs):
+    """Clean build artifacts."""
+    print("🧹 Cleaning project...\n")
+
+    # cargo clean
+    print("Run cargo clean...")
+    subprocess.run(["cargo", "clean"], check=True)
+
+    # Delete implementations/cpp/**/build
+    print("Delete implementations/cpp/**/build...")
+    build_dirs = glob.glob("implementations/cpp/*/build")
+    for build_dir in build_dirs:
+        print(f"  Deleting {build_dir}...")
+        shutil.rmtree(build_dir, ignore_errors=True)
+
+    # Delete result directory
+    if os.path.exists("results"):
+        # Ask for confirmation
+        if not args.yes:
+            confirm = input("Delete results directory? (y/N): ")
+            if confirm.lower() != "y":
+                return
+
+        print("Delete results directory...")
+        shutil.rmtree("results")
+    else:
+        print("Skipping: Results directory does not exist.")

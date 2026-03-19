@@ -20,3 +20,6 @@ dev = [
     "ruff>=0.14.6",
     "ty>=0.0.6",
 ]
+
+[tool.ruff]
+extend-include = ["bench"]
