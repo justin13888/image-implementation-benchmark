@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use benchmark_harness::{Args, BenchmarkImplementation};
+use benchmark_harness::{Args, BenchmarkImplementation, Quality};
 use zune_png::PngEncoder;
 
 struct ZunePngBench;
@@ -8,6 +8,7 @@ struct BenchContext {
     input_data: Vec<u8>,
     width: usize,
     height: usize,
+    effort: u8,
 }
 
 impl BenchmarkImplementation for ZunePngBench {
@@ -23,10 +24,18 @@ impl BenchmarkImplementation for ZunePngBench {
         let height = img.height() as usize;
         let input_data = img.to_rgb8().into_raw();
 
+        // Map quality tier to zlib compression effort (0-9)
+        let effort = match args.quality {
+            Quality::WebLow => 1,
+            Quality::WebHigh => 5,
+            Quality::Archival => 9,
+        };
+
         Ok(Box::new(BenchContext {
             input_data,
             width,
             height,
+            effort,
         }))
     }
 
@@ -40,7 +49,8 @@ impl BenchmarkImplementation for ZunePngBench {
             ctx.height,
             zune_core::colorspace::ColorSpace::RGB,
             zune_core::bit_depth::BitDepth::Eight,
-        );
+        )
+        .set_effort(ctx.effort);
 
         let mut encoder = PngEncoder::new(&ctx.input_data, options);
 

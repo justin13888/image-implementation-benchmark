@@ -42,6 +42,9 @@ impl BenchmarkImplementation for ImageJpegBench {
 
         let mut output = Vec::with_capacity(ctx.rgb_data.len() / 2);
         {
+            // LIMITATION: image::codecs::jpeg::JpegEncoder does not support configuring
+            // progressive encoding or chroma subsampling (crate limitation as of image 0.25).
+            // Quality tiers are differentiated only by the quality value.
             let encoder = JpegEncoder::new_with_quality(&mut output, ctx.quality);
             encoder
                 .write_image(

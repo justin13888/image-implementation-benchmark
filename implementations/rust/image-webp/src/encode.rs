@@ -1,11 +1,15 @@
 use anyhow::{Context, Result};
 use benchmark_harness::{Args, BenchmarkImplementation};
+use image::codecs::webp::WebPEncoder;
+use image::{ExtendedColorType, ImageEncoder};
 use std::io::{BufWriter, Cursor};
 
 struct ImageWebpBench;
 
 struct BenchContext {
-    img: image::DynamicImage,
+    width: u32,
+    height: u32,
+    rgb_data: Vec<u8>,
 }
 
 impl BenchmarkImplementation for ImageWebpBench {
@@ -15,10 +19,11 @@ impl BenchmarkImplementation for ImageWebpBench {
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         let (width, height, rgb_data) = benchmark_harness::decode_ppm_rgb8(&args.input)?;
-        let img = image::RgbImage::from_raw(width, height, rgb_data)
-            .context("Failed to create RgbImage")?;
-        let img = image::DynamicImage::ImageRgb8(img);
-        Ok(Box::new(BenchContext { img }))
+        Ok(Box::new(BenchContext {
+            width,
+            height,
+            rgb_data,
+        }))
     }
 
     fn run(&self, _args: &Args, context: &mut dyn std::any::Any) -> Result<Vec<u8>> {
@@ -26,16 +31,23 @@ impl BenchmarkImplementation for ImageWebpBench {
             .downcast_ref::<BenchContext>()
             .expect("Invalid context");
 
-        let mut output = Vec::with_capacity(ctx.img.as_bytes().len() / 2);
+        let mut output = Vec::with_capacity(ctx.rgb_data.len() / 2);
 
         {
             let cursor = Cursor::new(&mut output);
-            let mut writer = BufWriter::new(cursor);
-            // TODO: image-webp crate only supports lossless encoding as of writing.
-            // This means quality tiers (web-low, web-high) are not respected.
-            ctx.img
-                .write_to(&mut writer, image::ImageFormat::WebP)
-                .context("Failed to encode WebP")?;
+            let writer = BufWriter::new(cursor);
+            // LIMITATION: image-webp v0.2.4 only supports lossless WebP encoding.
+            // Quality tiers (web-low, web-high) are NOT respected — all output is lossless.
+            // This makes timing comparisons with libwebp-encode for lossy tiers invalid.
+            // Exclude image-webp from lossy-tier comparisons until a lossy API is available.
+            WebPEncoder::new_lossless(writer)
+                .write_image(
+                    &ctx.rgb_data,
+                    ctx.width,
+                    ctx.height,
+                    ExtendedColorType::Rgb8,
+                )
+                .context("Failed to encode WebP (lossless)")?;
         }
 
         Ok(output)

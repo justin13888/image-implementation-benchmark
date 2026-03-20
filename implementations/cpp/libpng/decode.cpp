@@ -85,6 +85,11 @@ class LibPngBench : public BenchmarkImplementation {
         color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
       png_set_gray_to_rgb(png_ptr);
 
+    // Strip alpha channel so output is always RGB (not RGBA).
+    // Required for PNGs with alpha (e.g. alpha_gradient_4k.png) — without this,
+    // png_get_rowbytes() returns width*4 but encode_ppm_rgb8() expects width*3.
+    png_set_strip_alpha(png_ptr);
+
     png_read_update_info(png_ptr, info_ptr);
 
     // Allocate output buffer

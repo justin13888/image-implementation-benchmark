@@ -1,6 +1,5 @@
 #include <webp/encode.h>
 
-#include <fstream>
 #include <stdexcept>
 #include <vector>
 
@@ -11,55 +10,10 @@ class LibWebpEncodeBench : public BenchmarkImplementation {
   std::string name() const override { return "libwebp-encode"; }
 
   void prepare(const Args &args) override {
-    // Load input PPM file
-    std::ifstream file(args.input, std::ios::binary | std::ios::ate);
-    if (!file)
-      throw std::runtime_error("Failed to open input file: " + args.input);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-    std::vector<char> buffer(size);
-    if (!file.read(buffer.data(), size))
-      throw std::runtime_error("Failed to read input file");
-
-    // Parse PPM
-    const char *data = buffer.data();
-    if (buffer.size() < 3 || data[0] != 'P' || data[1] != '6') {
-      throw std::runtime_error("Input must be PPM P6 format");
-    }
-
-    size_t pos = 3;
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-    while (pos < buffer.size() && data[pos] == '#') {
-      while (pos < buffer.size() && data[pos] != '\n') pos++;
-      pos++;
-    }
-
-    width = 0;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
-      width = width * 10 + (data[pos] - '0');
-      pos++;
-    }
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-
-    height = 0;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
-      height = height * 10 + (data[pos] - '0');
-      pos++;
-    }
-
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') pos++;
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-
-    input_data.assign(data + pos, data + buffer.size());
+    RGBImage img = decode_ppm_rgb8(args.input);
+    width = img.width;
+    height = img.height;
+    input_data = std::move(img.data);
 
     // Configure quality settings
     if (args.quality == "web-low") {

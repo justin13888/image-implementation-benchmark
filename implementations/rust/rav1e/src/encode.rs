@@ -10,6 +10,7 @@ struct BenchContext {
     rgb_data: Vec<u8>,
     quantizer: usize,
     speed: u8,
+    chroma_sampling: ChromaSampling,
 }
 
 impl BenchmarkImplementation for Rav1eBench {
@@ -21,10 +22,10 @@ impl BenchmarkImplementation for Rav1eBench {
         // Load the raw image data (PPM format expected)
         let (width, height, rgb_data) = benchmark_harness::decode_ppm_rgb8(&args.input)?;
 
-        let (quantizer, speed) = match args.quality {
-            Quality::WebLow => (100, 9u8),
-            Quality::WebHigh => (80, 7u8),
-            Quality::Archival => (50, 4u8),
+        let (quantizer, speed, chroma_sampling) = match args.quality {
+            Quality::WebLow => (100, 9u8, ChromaSampling::Cs420),
+            Quality::WebHigh => (80, 7u8, ChromaSampling::Cs420),
+            Quality::Archival => (50, 4u8, ChromaSampling::Cs444),
         };
 
         Ok(Box::new(BenchContext {
@@ -33,6 +34,7 @@ impl BenchmarkImplementation for Rav1eBench {
             rgb_data,
             quantizer,
             speed,
+            chroma_sampling,
         }))
     }
 
@@ -47,7 +49,7 @@ impl BenchmarkImplementation for Rav1eBench {
             height: ctx.height,
             time_base: Rational::new(1, 30),
             bit_depth: 8,
-            chroma_sampling: ChromaSampling::Cs420,
+            chroma_sampling: ctx.chroma_sampling,
             ..Default::default()
         };
 
@@ -66,38 +68,71 @@ impl BenchmarkImplementation for Rav1eBench {
         // Cache strides to avoid borrow conflicts
         let y_stride = frame.planes[0].cfg.stride;
 
-        // Simple RGB to YUV420 conversion
+        // Fill Y plane (BT.709 luma)
         for y in 0..ctx.height {
             for x in 0..ctx.width {
                 let idx = (y * ctx.width + x) * 3;
                 let r = ctx.rgb_data[idx] as f32;
                 let g = ctx.rgb_data[idx + 1] as f32;
                 let b = ctx.rgb_data[idx + 2] as f32;
-                // BT.709 conversion
                 let y_val = (0.2126 * r + 0.7152 * g + 0.0722 * b) as u8;
                 frame.planes[0].data_origin_mut()[y * y_stride + x] = y_val;
             }
         }
 
-        // Subsample for U and V planes (4:2:0)
         let u_stride = frame.planes[1].cfg.stride;
         let v_stride = frame.planes[2].cfg.stride;
-        for y in (0..ctx.height).step_by(2) {
-            for x in (0..ctx.width).step_by(2) {
-                let idx = (y * ctx.width + x) * 3;
-                let r = ctx.rgb_data[idx] as f32;
-                let g = ctx.rgb_data[idx + 1] as f32;
-                let b = ctx.rgb_data[idx + 2] as f32;
 
-                let y_val = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                let u_val = ((b - y_val) * 0.539 + 128.0).clamp(0.0, 255.0) as u8;
-                let v_val = ((r - y_val) * 0.635 + 128.0).clamp(0.0, 255.0) as u8;
-
-                let uv_y = y / 2;
-                let uv_x = x / 2;
-                frame.planes[1].data_origin_mut()[uv_y * u_stride + uv_x] = u_val;
-                frame.planes[2].data_origin_mut()[uv_y * v_stride + uv_x] = v_val;
+        match ctx.chroma_sampling {
+            ChromaSampling::Cs420 => {
+                // Average 2x2 blocks for chroma downsampling
+                for y in (0..ctx.height).step_by(2) {
+                    for x in (0..ctx.width).step_by(2) {
+                        let mut r_sum = 0.0f32;
+                        let mut g_sum = 0.0f32;
+                        let mut b_sum = 0.0f32;
+                        let mut count = 0u32;
+                        for dy in 0..2usize {
+                            for dx in 0..2usize {
+                                let py = (y + dy).min(ctx.height - 1);
+                                let px = (x + dx).min(ctx.width - 1);
+                                let idx = (py * ctx.width + px) * 3;
+                                r_sum += ctx.rgb_data[idx] as f32;
+                                g_sum += ctx.rgb_data[idx + 1] as f32;
+                                b_sum += ctx.rgb_data[idx + 2] as f32;
+                                count += 1;
+                            }
+                        }
+                        let r = r_sum / count as f32;
+                        let g = g_sum / count as f32;
+                        let b = b_sum / count as f32;
+                        let y_val = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                        let u_val = ((b - y_val) * 0.539 + 128.0).clamp(0.0, 255.0) as u8;
+                        let v_val = ((r - y_val) * 0.635 + 128.0).clamp(0.0, 255.0) as u8;
+                        let uv_y = y / 2;
+                        let uv_x = x / 2;
+                        frame.planes[1].data_origin_mut()[uv_y * u_stride + uv_x] = u_val;
+                        frame.planes[2].data_origin_mut()[uv_y * v_stride + uv_x] = v_val;
+                    }
+                }
             }
+            ChromaSampling::Cs444 => {
+                // Full chroma resolution — one U/V per pixel
+                for y in 0..ctx.height {
+                    for x in 0..ctx.width {
+                        let idx = (y * ctx.width + x) * 3;
+                        let r = ctx.rgb_data[idx] as f32;
+                        let g = ctx.rgb_data[idx + 1] as f32;
+                        let b = ctx.rgb_data[idx + 2] as f32;
+                        let y_val = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                        let u_val = ((b - y_val) * 0.539 + 128.0).clamp(0.0, 255.0) as u8;
+                        let v_val = ((r - y_val) * 0.635 + 128.0).clamp(0.0, 255.0) as u8;
+                        frame.planes[1].data_origin_mut()[y * u_stride + x] = u_val;
+                        frame.planes[2].data_origin_mut()[y * v_stride + x] = v_val;
+                    }
+                }
+            }
+            _ => unreachable!("Unsupported chroma sampling"),
         }
 
         enc_ctx.send_frame(frame).context("Failed to send frame")?;

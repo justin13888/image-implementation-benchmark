@@ -13,14 +13,14 @@ endif()
 
 include_directories(../../../harness/cpp)
 
-find_package(JPEG REQUIRED)
+find_package(mozjpeg REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(mimalloc REQUIRED)
 
 # Decoder binary
 add_executable(bench-mozjpeg-decode decode.cpp)
-target_link_libraries(bench-mozjpeg-decode JPEG::JPEG ZLIB::ZLIB mimalloc-static)
+target_link_libraries(bench-mozjpeg-decode mozjpeg::jpeg-static ZLIB::ZLIB mimalloc-static)
 
 # Encoder binary
 add_executable(bench-mozjpeg-encode encode.cpp)
-target_link_libraries(bench-mozjpeg-encode JPEG::JPEG ZLIB::ZLIB mimalloc-static)
+target_link_libraries(bench-mozjpeg-encode mozjpeg::jpeg-static ZLIB::ZLIB mimalloc-static)

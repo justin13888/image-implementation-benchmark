@@ -1,7 +1,6 @@
 #include <spng.h>
 
 #include <cstring>
-#include <fstream>
 #include <stdexcept>
 #include <vector>
 
@@ -12,65 +11,17 @@ class SpngEncodeBench : public BenchmarkImplementation {
   std::string name() const override { return "spng-encode"; }
 
   void prepare(const Args &args) override {
-    // Load input PPM file
-    std::ifstream file(args.input, std::ios::binary | std::ios::ate);
-    if (!file)
-      throw std::runtime_error("Failed to open input file: " + args.input);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-    std::vector<char> buffer(size);
-    if (!file.read(buffer.data(), size))
-      throw std::runtime_error("Failed to read input file");
+    RGBImage img = decode_ppm_rgb8(args.input);
 
-    // Parse PPM
-    const char *data = buffer.data();
-    if (buffer.size() < 3 || data[0] != 'P' || data[1] != '6') {
-      throw std::runtime_error("Input must be PPM P6 format");
+    // Trim any trailing bytes beyond the expected pixel data
+    size_t expected_size = (size_t)img.width * img.height * 3;
+    if (img.data.size() > expected_size) {
+      img.data.resize(expected_size);
     }
 
-    size_t pos = 3;
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-    while (pos < buffer.size() && data[pos] == '#') {
-      while (pos < buffer.size() && data[pos] != '\n') pos++;
-      pos++;
-    }
-
-    width = 0;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
-      width = width * 10 + (data[pos] - '0');
-      pos++;
-    }
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-
-    height = 0;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
-      height = height * 10 + (data[pos] - '0');
-      pos++;
-    }
-
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') pos++;
-    while (pos < buffer.size() &&
-           (data[pos] == ' ' || data[pos] == '\n' || data[pos] == '\r'))
-      pos++;
-
-    input_data.assign(data + pos, data + buffer.size());
-
-    // Validate size
-    size_t expected_size = (size_t)width * height * 3;
-    if (input_data.size() < expected_size) {
-      throw std::runtime_error("Input data too small for dimensions");
-    }
-    if (input_data.size() > expected_size) {
-      // PPM might have trailing whitespace
-      input_data.resize(expected_size);
-    }
+    width = static_cast<uint32_t>(img.width);
+    height = static_cast<uint32_t>(img.height);
+    input_data = std::move(img.data);
 
     // TODO: SPNG encoder API does not expose compression level control.
     // Quality tiers cannot be differentiated for PNG encoding with SPNG.

@@ -16,14 +16,14 @@ include_directories(../../../harness/cpp)
 
 include(FetchContent)
 
-find_package(JPEG REQUIRED)
+find_package(libjpeg-turbo REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(mimalloc REQUIRED)
 
 # Decoder binary
 add_executable(bench-libjpeg-turbo-decode decode.cpp)
-target_link_libraries(bench-libjpeg-turbo-decode JPEG::JPEG ZLIB::ZLIB mimalloc-static)
+target_link_libraries(bench-libjpeg-turbo-decode libjpeg-turbo::jpeg-static ZLIB::ZLIB mimalloc-static)
 
 # Encoder binary
 add_executable(bench-libjpeg-turbo-encode encode.cpp)
-target_link_libraries(bench-libjpeg-turbo-encode JPEG::JPEG ZLIB::ZLIB mimalloc-static)
+target_link_libraries(bench-libjpeg-turbo-encode libjpeg-turbo::jpeg-static ZLIB::ZLIB mimalloc-static)

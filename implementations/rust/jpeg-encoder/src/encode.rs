@@ -1,12 +1,13 @@
 use anyhow::{Context, Result};
 use benchmark_harness::{Args, BenchmarkImplementation, Quality};
-use jpeg_encoder::{ColorType, Encoder};
+use jpeg_encoder::{ColorType, Encoder, SamplingFactor};
 
 struct JpegEncoderBench;
 
 struct BenchContext {
     quality: u8,
     is_progressive: bool,
+    sampling_factor: SamplingFactor,
     width: u16,
     height: u16,
     rgb8_img: Vec<u8>,
@@ -19,19 +20,15 @@ impl BenchmarkImplementation for JpegEncoderBench {
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         let (width, height, rgb8_img) = benchmark_harness::decode_ppm_rgb8(&args.input)?;
-        let quality = match args.quality {
-            Quality::WebLow => 50,
-            Quality::WebHigh => 80,
-            Quality::Archival => 95,
-        };
-        let is_progressive = match args.quality {
-            Quality::WebLow => false,
-            Quality::WebHigh => true,
-            Quality::Archival => false,
+        let (quality, is_progressive, sampling_factor) = match args.quality {
+            Quality::WebLow => (50u8, false, SamplingFactor::R_4_2_0),
+            Quality::WebHigh => (80u8, true, SamplingFactor::R_4_2_0),
+            Quality::Archival => (95u8, false, SamplingFactor::R_4_4_4),
         };
         Ok(Box::new(BenchContext {
             quality,
             is_progressive,
+            sampling_factor,
             width: width as u16,
             height: height as u16,
             rgb8_img,
@@ -46,6 +43,7 @@ impl BenchmarkImplementation for JpegEncoderBench {
         let mut output = Vec::with_capacity(ctx.rgb8_img.len());
         let mut encoder = Encoder::new(&mut output, ctx.quality);
         encoder.set_progressive(ctx.is_progressive);
+        encoder.set_sampling_factor(ctx.sampling_factor);
         encoder
             .encode(&ctx.rgb8_img, ctx.width, ctx.height, ColorType::Rgb)
             .context("Failed to encode image")?;

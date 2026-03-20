@@ -31,6 +31,9 @@ class LibAvifBench : public BenchmarkImplementation {
     avifDecoder *decoder = avifDecoderCreate();
     if (!decoder) throw std::runtime_error("avifDecoderCreate failed");
 
+    // Force aom AV1 decoder for a fair comparison against dav1d-decode
+    avifDecoderSetCodecChoice(decoder, AVIF_CODEC_CHOICE_AOM);
+
     avifResult result =
         avifDecoderSetIOMemory(decoder, data.data(), data.size());
     if (result != AVIF_RESULT_OK) {
