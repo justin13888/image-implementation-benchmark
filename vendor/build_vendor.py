@@ -1,0 +1,469 @@
+#!/usr/bin/env python3
+"""Build all vendored C/C++ libraries from source to local install prefixes."""
+
+import os
+import shutil
+import stat
+import subprocess
+import sys
+
+# Project root is one level up from this script
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+VENDOR_DIR = SCRIPT_DIR
+
+# Install prefixes
+INSTALL_COMMON = os.path.join(VENDOR_DIR, "install", "common")
+INSTALL_LIBJPEG_TURBO = os.path.join(VENDOR_DIR, "install", "libjpeg-turbo")
+INSTALL_MOZJPEG = os.path.join(VENDOR_DIR, "install", "mozjpeg")
+
+# Build directories
+BUILD_DIR = os.path.join(VENDOR_DIR, "build")
+
+# Compiler flags
+OPT_FLAGS = ["-O3", "-march=native", "-fPIC"]
+
+
+def run(cmd, cwd=None, env=None, label=None):
+    """Run a command, exit on failure."""
+    label_str = f"[{label}] " if label else ""
+    print(f"  {label_str}$ {' '.join(cmd)}")
+    result = subprocess.run(cmd, cwd=cwd, env=env)
+    if result.returncode != 0:
+        print(f"\nERROR: Command failed (exit {result.returncode})")
+        sys.exit(result.returncode)
+
+
+def cmake_build(
+    src_dir,
+    build_subdir,
+    install_prefix,
+    cmake_args=None,
+    label=None,
+):
+    """Configure and build a CMake project."""
+    build_dir = os.path.join(BUILD_DIR, build_subdir)
+    os.makedirs(build_dir, exist_ok=True)
+    os.makedirs(install_prefix, exist_ok=True)
+
+    env = os.environ.copy()
+    cflags = " ".join(OPT_FLAGS)
+    env["CFLAGS"] = cflags
+    env["CXXFLAGS"] = cflags
+
+    configure_cmd = [
+        "cmake",
+        src_dir,
+        f"-DCMAKE_INSTALL_PREFIX={install_prefix}",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DCMAKE_C_COMPILER_LAUNCHER=ccache",
+        "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
+        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
+    ] + (cmake_args or [])
+
+    run(configure_cmd, cwd=build_dir, env=env, label=label)
+    run(["cmake", "--build", ".", "--parallel"], cwd=build_dir, env=env, label=label)
+    run(["cmake", "--install", "."], cwd=build_dir, env=env, label=label)
+
+
+def is_built(sentinel_path):
+    """Check if a library has already been built."""
+    return os.path.exists(sentinel_path)
+
+
+def build_zlib():
+    label = "zlib"
+    sentinel = os.path.join(INSTALL_COMMON, "lib", "libz.a")
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+    src = os.path.join(VENDOR_DIR, "zlib")
+    cmake_build(
+        src,
+        "zlib",
+        INSTALL_COMMON,
+        cmake_args=["-DZLIB_BUILD_EXAMPLES=OFF"],
+        label=label,
+    )
+
+
+def build_mimalloc():
+    label = "mimalloc"
+    # mimalloc installs into a versioned subdir: lib64/mimalloc-<ver>/libmimalloc.a
+    import glob as _glob
+    matches = _glob.glob(os.path.join(INSTALL_COMMON, "lib*", "mimalloc-*", "libmimalloc.a"))
+    sentinel = matches[0] if matches else os.path.join(INSTALL_COMMON, "lib", "libmimalloc.a")
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+    src = os.path.join(VENDOR_DIR, "mimalloc")
+    cmake_build(
+        src,
+        "mimalloc",
+        INSTALL_COMMON,
+        cmake_args=[
+            "-DMI_BUILD_TESTS=OFF",
+            "-DMI_BUILD_SHARED=OFF",
+        ],
+        label=label,
+    )
+
+
+def build_libjpeg_turbo():
+    label = "libjpeg-turbo"
+    sentinel = os.path.join(INSTALL_LIBJPEG_TURBO, "lib64", "libturbojpeg.a")
+    if not is_built(sentinel):
+        sentinel = os.path.join(INSTALL_LIBJPEG_TURBO, "lib", "libturbojpeg.a")
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+    src = os.path.join(VENDOR_DIR, "libjpeg-turbo")
+    cmake_build(
+        src,
+        "libjpeg-turbo",
+        INSTALL_LIBJPEG_TURBO,
+        cmake_args=[
+            "-DENABLE_SHARED=OFF",
+            f"-DZLIB_ROOT={INSTALL_COMMON}",
+        ],
+        label=label,
+    )
+
+
+def build_mozjpeg():
+    label = "mozjpeg"
+    sentinel = os.path.join(INSTALL_MOZJPEG, "lib64", "libturbojpeg.a")
+    if not is_built(sentinel):
+        sentinel = os.path.join(INSTALL_MOZJPEG, "lib", "libturbojpeg.a")
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+    src = os.path.join(VENDOR_DIR, "mozjpeg")
+    cmake_build(
+        src,
+        "mozjpeg",
+        INSTALL_MOZJPEG,
+        cmake_args=[
+            "-DENABLE_SHARED=OFF",
+            f"-DCMAKE_PREFIX_PATH={INSTALL_COMMON}",
+            f"-DZLIB_ROOT={INSTALL_COMMON}",
+            f"-DPNG_ROOT={INSTALL_COMMON}",
+            # Enable CMP0074 so <Pkg>_ROOT variables are respected by find_package
+            "-DCMAKE_POLICY_DEFAULT_CMP0074=NEW",
+            # mozjpeg requires CMake 2.8.12; CMake ≥4.x dropped compat < 3.5
+            "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+        ],
+        label=label,
+    )
+
+
+def build_libpng():
+    label = "libpng"
+    sentinel = os.path.join(INSTALL_COMMON, "lib", "libpng.a")
+    if not is_built(sentinel):
+        sentinel = os.path.join(INSTALL_COMMON, "lib64", "libpng.a")
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+    src = os.path.join(VENDOR_DIR, "libpng")
+    cmake_build(
+        src,
+        "libpng",
+        INSTALL_COMMON,
+        cmake_args=[
+            "-DPNG_SHARED=OFF",
+            "-DPNG_TESTS=OFF",
+            f"-DZLIB_ROOT={INSTALL_COMMON}",
+        ],
+        label=label,
+    )
+
+
+def build_spng():
+    label = "spng"
+    sentinel = os.path.join(INSTALL_COMMON, "lib", "libspng_static.a")
+    if not is_built(sentinel):
+        sentinel = os.path.join(INSTALL_COMMON, "lib64", "libspng_static.a")
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+    src = os.path.join(VENDOR_DIR, "spng")
+    cmake_build(
+        src,
+        "spng",
+        INSTALL_COMMON,
+        cmake_args=[
+            f"-DCMAKE_PREFIX_PATH={INSTALL_COMMON}",
+        ],
+        label=label,
+    )
+
+
+def build_dav1d():
+    label = "dav1d"
+    sentinel = os.path.join(INSTALL_COMMON, "lib", "libdav1d.a")
+    if not is_built(sentinel):
+        sentinel = os.path.join(INSTALL_COMMON, "lib64", "libdav1d.a")
+    if not is_built(sentinel):
+        # Some distros put it in lib/x86_64-linux-gnu or similar
+        import glob as _glob
+
+        matches = _glob.glob(os.path.join(INSTALL_COMMON, "**", "libdav1d.a"), recursive=True)
+        if matches:
+            sentinel = matches[0]
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+
+    src = os.path.join(VENDOR_DIR, "dav1d")
+    build_dir = os.path.join(BUILD_DIR, "dav1d")
+    os.makedirs(build_dir, exist_ok=True)
+    os.makedirs(INSTALL_COMMON, exist_ok=True)
+
+    env = os.environ.copy()
+    cflags = " ".join(OPT_FLAGS)
+    env["CFLAGS"] = cflags
+
+    run(
+        [
+            "meson",
+            "setup",
+            build_dir,
+            src,
+            f"--prefix={INSTALL_COMMON}",
+            "--default-library=static",
+            "--buildtype=release",
+            "-Denable_tools=false",
+            "-Denable_tests=false",
+        ],
+        label=label,
+        env=env,
+    )
+    run(["ninja", "-C", build_dir], label=label, env=env)
+    run(["ninja", "-C", build_dir, "install"], label=label, env=env)
+
+
+def _make_nasm_shim() -> str:
+    """
+    Return path to a nasm shim script, creating it if needed.
+
+    Root cause: aom cmake's test_nasm() runs
+        nasm -hf
+    and checks whether the output contains the literal string "-Ox" to confirm
+    multipass optimization support.  In nasm 2.x, `nasm -hf` printed a full
+    help page that included "-Ox".  In nasm 3.x, `-hf` only lists output
+    formats; "-Ox" moved to a separate help section (`nasm -h`), so the grep
+    never matches and cmake rejects nasm 3.x as "unsupported".
+
+    The shim intercepts the `-hf` invocation and appends the "-Ox" line that
+    cmake expects, while forwarding every other invocation to real nasm.
+    """
+    nasm_real = shutil.which("nasm")
+    if not nasm_real:
+        raise RuntimeError("nasm not found in PATH")
+
+    shim_path = os.path.join(BUILD_DIR, "nasm_shim.sh")
+    os.makedirs(BUILD_DIR, exist_ok=True)
+    with open(shim_path, "w") as f:
+        f.write(f"""\
+#!/bin/bash
+# nasm shim: aom cmake test_nasm() greps for "-Ox" in `nasm -hf` output.
+# nasm 3.x moved -Ox out of the -hf help text, breaking that check.
+# Intercept -hf and append the expected line; pass everything else through.
+if [[ "$*" == "-hf" ]]; then
+    {nasm_real} -hf 2>&1
+    echo "    -Ox                     enable multipass optimization"
+    exit 0
+fi
+exec {nasm_real} "$@"
+""")
+    os.chmod(shim_path, os.stat(shim_path).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return shim_path
+
+
+def build_aom():
+    label = "aom"
+    sentinel = os.path.join(INSTALL_COMMON, "lib", "libaom.a")
+    if not is_built(sentinel):
+        sentinel = os.path.join(INSTALL_COMMON, "lib64", "libaom.a")
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+    src = os.path.join(VENDOR_DIR, "aom")
+    nasm_shim = _make_nasm_shim()
+    cmake_build(
+        src,
+        "aom",
+        INSTALL_COMMON,
+        cmake_args=[
+            "-DENABLE_EXAMPLES=OFF",
+            "-DENABLE_TESTS=OFF",
+            "-DENABLE_TOOLS=OFF",
+            # Do NOT set CONFIG_AV1_DECODER=0: libavif's codec_aom.c includes
+            # aom/aom_decoder.h unconditionally, so the decoder headers must
+            # be installed even though dav1d handles all actual decoding.
+            # Point cmake at the shim so test_nasm() passes on nasm 3.x.
+            # Real nasm compilations are forwarded unchanged by the shim.
+            f"-DCMAKE_ASM_NASM_COMPILER={nasm_shim}",
+        ],
+        label=label,
+    )
+
+
+def build_libavif():
+    label = "libavif"
+    sentinel = os.path.join(INSTALL_COMMON, "lib", "libavif.a")
+    if not is_built(sentinel):
+        sentinel = os.path.join(INSTALL_COMMON, "lib64", "libavif.a")
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+    src = os.path.join(VENDOR_DIR, "libavif")
+
+    # Build pkg-config paths to find vendored dav1d and aom
+    pkg_lib_dirs = [
+        os.path.join(INSTALL_COMMON, "lib", "pkgconfig"),
+        os.path.join(INSTALL_COMMON, "lib64", "pkgconfig"),
+        os.path.join(INSTALL_COMMON, "share", "pkgconfig"),
+    ]
+    # Also search subdirs (e.g. x86_64-linux-gnu)
+    import glob as _glob
+    for extra in _glob.glob(os.path.join(INSTALL_COMMON, "lib", "*", "pkgconfig")):
+        pkg_lib_dirs.append(extra)
+
+    env = os.environ.copy()
+    existing_pkg = env.get("PKG_CONFIG_PATH", "")
+    env["PKG_CONFIG_PATH"] = ":".join(pkg_lib_dirs + ([existing_pkg] if existing_pkg else []))
+
+    cmake_build(
+        src,
+        "libavif",
+        INSTALL_COMMON,
+        cmake_args=[
+            "-DAVIF_CODEC_DAV1D=SYSTEM",
+            "-DAVIF_CODEC_AOM=SYSTEM",
+            "-DAVIF_BUILD_APPS=OFF",
+            "-DAVIF_BUILD_TESTS=OFF",
+            "-DAVIF_LIBYUV=OFF",
+            "-DAVIF_LIBSHARPYUV=OFF",
+            f"-DCMAKE_PREFIX_PATH={INSTALL_COMMON}",
+        ],
+        label=label,
+    )
+
+
+def build_libjxl():
+    label = "libjxl"
+    sentinel = os.path.join(INSTALL_COMMON, "lib", "libjxl.a")
+    if not is_built(sentinel):
+        sentinel = os.path.join(INSTALL_COMMON, "lib64", "libjxl.a")
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+    src = os.path.join(VENDOR_DIR, "libjxl")
+    cmake_build(
+        src,
+        "libjxl",
+        INSTALL_COMMON,
+        cmake_args=[
+            "-DBUILD_TESTING=OFF",
+            "-DJPEGXL_ENABLE_TOOLS=OFF",
+            "-DJPEGXL_ENABLE_MANPAGES=OFF",
+            "-DJPEGXL_ENABLE_BENCHMARK=OFF",
+            "-DJPEGXL_ENABLE_EXAMPLES=OFF",
+            # libjxl's third_party/sjpeg requires CMake 2.8.7; CMake ≥4.x dropped compat < 3.5
+            "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+        ],
+        label=label,
+    )
+
+
+def build_libwebp():
+    label = "libwebp"
+    sentinel = os.path.join(INSTALL_COMMON, "lib", "libwebp.a")
+    if not is_built(sentinel):
+        sentinel = os.path.join(INSTALL_COMMON, "lib64", "libwebp.a")
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+    src = os.path.join(VENDOR_DIR, "libwebp")
+    cmake_build(
+        src,
+        "libwebp",
+        INSTALL_COMMON,
+        cmake_args=[
+            "-DWEBP_BUILD_CWEBP=OFF",
+            "-DWEBP_BUILD_DWEBP=OFF",
+            "-DWEBP_BUILD_GIF2WEBP=OFF",
+            "-DWEBP_BUILD_IMG2WEBP=OFF",
+            "-DWEBP_BUILD_EXTRAS=OFF",
+        ],
+        label=label,
+    )
+
+
+def build_ssimulacra2():
+    label = "ssimulacra2"
+    binary = os.path.join(BUILD_DIR, "ssimulacra2", "release", "ssimulacra2_rs")
+    if os.path.exists(binary):
+        print(f"  [{label}] Already built, skipping.")
+        return
+
+    manifest = os.path.join(VENDOR_DIR, "ssimulacra2", "ssimulacra2_bin", "Cargo.toml")
+    target_dir = os.path.join(BUILD_DIR, "ssimulacra2")
+    os.makedirs(target_dir, exist_ok=True)
+
+    env = os.environ.copy()
+    env["RUSTFLAGS"] = "-C target-cpu=native"
+
+    print(f"  [{label}] Building ssimulacra2_rs...")
+    run(
+        [
+            "cargo",
+            "build",
+            "--release",
+            "--no-default-features",
+            "--features",
+            "avif",
+            "--manifest-path",
+            manifest,
+            "--target-dir",
+            target_dir,
+        ],
+        env=env,
+        label=label,
+    )
+
+
+def main():
+    print("=" * 70)
+    print("BUILDING VENDORED DEPENDENCIES")
+    print("=" * 70)
+
+    steps = [
+        ("zlib", build_zlib),
+        ("mimalloc", build_mimalloc),
+        ("libpng", build_libpng),   # must precede mozjpeg (mozjpeg find_package(PNG))
+        ("libjpeg-turbo", build_libjpeg_turbo),
+        ("mozjpeg", build_mozjpeg),
+        ("spng", build_spng),
+        ("dav1d", build_dav1d),
+        ("aom", build_aom),
+        ("libavif", build_libavif),
+        ("libjxl", build_libjxl),
+        ("libwebp", build_libwebp),
+        ("ssimulacra2", build_ssimulacra2),
+    ]
+
+    for name, fn in steps:
+        print(f"\n[{name}]")
+        fn()
+
+    print("\n" + "=" * 70)
+    print("All vendored dependencies built successfully.")
+    print("=" * 70)
+
+
+if __name__ == "__main__":
+    main()

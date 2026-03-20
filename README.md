@@ -8,7 +8,8 @@ This repository contains benchmarks for various image format implementations, co
 
 * [uv](https://docs.astral.sh/uv/) - Python package manager (install: `curl -LsSf https://astral.sh/uv/install.sh | sh`)
 * Rust toolchain ([rustup](https://rustup.rs/))
-* CMake, Clang, and development libraries
+* CMake, Clang, ccache, NASM
+* Meson + Ninja (for dav1d)
 * ImageMagick, hyperfine, wget, unzip
 * [just](https://github.com/casey/just) — task runner
 * [lefthook](https://github.com/evilmartians/lefthook) — git hooks manager
@@ -16,25 +17,19 @@ This repository contains benchmarks for various image format implementations, co
   On Ubuntu/Debian:
 
   ```bash
-  sudo apt install build-essential clang clang-format cmake ccache libmimalloc-dev \
-    libpng-dev libspng-dev libwebp-dev libavif-dev libdav1d-dev libjxl-dev \
-    pkg-config nasm imagemagick hyperfine wget unzip webp libavif-bin libjxl-tools
+  sudo apt install build-essential clang clang-format cmake ccache nasm \
+    meson ninja-build pkg-config imagemagick hyperfine wget unzip
   ```
 
   On macOS:
 
   ```bash
-  brew install clang-format cmake ccache mimalloc libpng libspng webp libavif dav1d jpeg-xl pkg-config nasm imagemagick hyperfine wget unzip
+  brew install clang-format cmake ccache nasm meson ninja pkg-config imagemagick hyperfine wget unzip
   ```
 
-* Install forked ssimulacra2_rs that has PPM support:
-  
-  ```bash
-  # In any another directory
-  git clone https://github.com/justin13888/ssimulacra2.git
-  cd ssimulacra2/ssimulacra2_bin
-  cargo install --path . --no-default-features
-  ```
+All C/C++ image libraries (zlib, mimalloc, libjpeg-turbo, mozjpeg, libpng, spng, libwebp, dav1d, aom, libavif, libjxl) and ssimulacra2 are vendored as git submodules and built automatically. No system dev packages for these libraries are required.
+
+> **CMake version:** CMake ≥ 3.5 is required. CMake 4.x is supported — `vendor/build_vendor.py` passes `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` automatically for older vendored projects (e.g. mozjpeg) that declare a lower minimum.
 
 ### Development Setup
 
@@ -53,13 +48,19 @@ This repository contains benchmarks for various image format implementations, co
 
 ### Setup
 
-1. **Install Python dependencies**:
+1. **Fetch vendored sources**:
+
+   ```bash
+   git submodule update --init --recursive
+   ```
+
+2. **Install Python dependencies**:
 
    ```bash
    uv sync  # Creates .venv with pillow, imagehash, numpy
    ```
 
-2. **Download benchmark datasets** (~3.5GB):
+3. **Download benchmark datasets** (~3.5GB):
 
    ```bash
    ./bench setup              # All datasets (KODAK, DIV2K, pathological, test)
@@ -77,7 +78,7 @@ This repository contains benchmarks for various image format implementations, co
 
    > **Note:** `./bench run` automatically sets up required datasets on first use, so an explicit `./bench setup` step is optional.
 
-3. **Build implementations** (see individual implementation directories)
+4. **Build implementations** (vendored libraries + all implementations built automatically via `./bench compile`)
 
 ### Running Benchmarks
 

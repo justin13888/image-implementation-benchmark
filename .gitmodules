@@ -1,0 +1,36 @@
+[submodule "vendor/zlib"]
+	path = vendor/zlib
+	url = https://github.com/madler/zlib.git
+[submodule "vendor/mimalloc"]
+	path = vendor/mimalloc
+	url = https://github.com/microsoft/mimalloc.git
+[submodule "vendor/libjpeg-turbo"]
+	path = vendor/libjpeg-turbo
+	url = https://github.com/libjpeg-turbo/libjpeg-turbo.git
+[submodule "vendor/mozjpeg"]
+	path = vendor/mozjpeg
+	url = https://github.com/mozilla/mozjpeg.git
+[submodule "vendor/libpng"]
+	path = vendor/libpng
+	url = https://github.com/pnggroup/libpng.git
+[submodule "vendor/spng"]
+	path = vendor/spng
+	url = https://github.com/randy408/libspng.git
+[submodule "vendor/libwebp"]
+	path = vendor/libwebp
+	url = https://chromium.googlesource.com/webm/libwebp.git
+[submodule "vendor/dav1d"]
+	path = vendor/dav1d
+	url = https://code.videolan.org/videolan/dav1d.git
+[submodule "vendor/aom"]
+	path = vendor/aom
+	url = https://aomedia.googlesource.com/aom.git
+[submodule "vendor/libavif"]
+	path = vendor/libavif
+	url = https://github.com/AOMediaCodec/libavif.git
+[submodule "vendor/libjxl"]
+	path = vendor/libjxl
+	url = https://github.com/libjxl/libjxl.git
+[submodule "vendor/ssimulacra2"]
+	path = vendor/ssimulacra2
+	url = https://github.com/justin13888/ssimulacra2.git

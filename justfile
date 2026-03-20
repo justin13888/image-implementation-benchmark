@@ -1,3 +1,18 @@
+# Clean recipes
+
+# Remove C++ and Rust benchmark build artifacts (fast to rebuild)
+clean:
+    rm -rf implementations/cpp/*/build
+    rm -rf target
+
+# Remove vendored library build and install trees (slow to rebuild — takes many minutes)
+clean-vendor:
+    rm -rf vendor/build
+    rm -rf vendor/install
+
+# Remove all build artifacts
+clean-all: clean clean-vendor
+
 # Fix recipes (modify files in place)
 
 fmt-cpp:

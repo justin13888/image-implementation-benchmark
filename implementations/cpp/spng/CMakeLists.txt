@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 find_package(PkgConfig REQUIRED)
 
 # Aggressive optimization flags per README
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto -fstrict-aliasing -fomit-frame-pointer -march=native -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fstrict-aliasing -fomit-frame-pointer -march=native -DNDEBUG")
 set(CMAKE_BUILD_TYPE Release)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")

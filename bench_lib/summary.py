@@ -83,6 +83,8 @@ def generate_summary(
             for b_type, formats in aggregated_results.items():
                 parsed_results[b_type] = {}
                 for fmt, impls in formats.items():
+                    if fmt == "null":
+                        continue  # null implementations have no format, skip
                     parsed_results[b_type][fmt] = []
                     for impl_name, agg in impls.items():
                         parsed_results[b_type][fmt].append(

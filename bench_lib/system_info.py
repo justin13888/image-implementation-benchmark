@@ -6,6 +6,10 @@ import platform
 import subprocess
 from typing import Dict, Any
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+VENDOR_COMMON = os.path.join(PROJECT_ROOT, "vendor", "install", "common")
+VENDOR_MOZJPEG = os.path.join(PROJECT_ROOT, "vendor", "install", "mozjpeg")
+
 
 def get_system_info() -> Dict[str, Any]:
     """Collect system information for reproducibility manifest."""
@@ -74,6 +78,16 @@ def get_library_versions() -> Dict[str, str]:
     """Attempt to determine versions of image libraries."""
     libraries = {}
 
+    # Build PKG_CONFIG_PATH to include vendored install prefix
+    pkg_dirs = [
+        os.path.join(VENDOR_COMMON, "lib", "pkgconfig"),
+        os.path.join(VENDOR_COMMON, "lib64", "pkgconfig"),
+        os.path.join(VENDOR_COMMON, "share", "pkgconfig"),
+    ]
+    existing = os.environ.get("PKG_CONFIG_PATH", "")
+    env = os.environ.copy()
+    env["PKG_CONFIG_PATH"] = ":".join(pkg_dirs + ([existing] if existing else []))
+
     libs_to_check = [
         "libjpeg-turbo",
         "libpng",
@@ -87,7 +101,9 @@ def get_library_versions() -> Dict[str, str]:
         try:
             result = (
                 subprocess.check_output(
-                    ["pkg-config", "--modversion", lib], stderr=subprocess.DEVNULL
+                    ["pkg-config", "--modversion", lib],
+                    stderr=subprocess.DEVNULL,
+                    env=env,
                 )
                 .decode()
                 .strip()
@@ -96,8 +112,28 @@ def get_library_versions() -> Dict[str, str]:
         except Exception:
             libraries[lib] = "unknown"
 
-    libraries["mozjpeg"] = "unknown"
-    libraries["mimalloc"] = "2.1.2"  # Would need to be detected dynamically
+    # Detect mozjpeg version from vendored .pc file
+    mozjpeg_pc = os.path.join(VENDOR_MOZJPEG, "lib64", "pkgconfig", "libjpeg.pc")
+    if not os.path.exists(mozjpeg_pc):
+        mozjpeg_pc = os.path.join(VENDOR_MOZJPEG, "lib", "pkgconfig", "libjpeg.pc")
+    mozjpeg_version = "unknown"
+    if os.path.exists(mozjpeg_pc):
+        try:
+            mozjpeg_env = os.environ.copy()
+            mozjpeg_env["PKG_CONFIG_PATH"] = os.path.dirname(mozjpeg_pc)
+            mozjpeg_version = (
+                subprocess.check_output(
+                    ["pkg-config", "--modversion", "libjpeg"],
+                    stderr=subprocess.DEVNULL,
+                    env=mozjpeg_env,
+                )
+                .decode()
+                .strip()
+            )
+        except Exception:
+            pass
+    libraries["mozjpeg"] = mozjpeg_version
+    libraries["mimalloc"] = "2.1.7"  # Pinned in vendor/mimalloc submodule
     libraries["hyperfine"] = "unknown"
 
     try:

@@ -51,6 +51,8 @@ from bench_lib.system_info import (
     get_system_info,
 )
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 DATASET_FILES_CHECKED: Set[str] = set()
 
 # Cache input file list for re-use
@@ -304,8 +306,11 @@ def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetri
 
             # 2. Run (modified) ssimulacra2_rs binary.
             score = -1.0
+            ssimulacra2_bin = os.path.join(
+                PROJECT_ROOT, "vendor", "build", "ssimulacra2", "release", "ssimulacra2_rs"
+            )
             res = subprocess.run(
-                ["ssimulacra2_rs", "image", task.source_path, output_path],
+                [ssimulacra2_bin, "image", task.source_path, output_path],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -695,6 +700,12 @@ def run_clean(args: CleanArgs):
     for build_dir in build_dirs:
         print(f"  Deleting {build_dir}...")
         shutil.rmtree(build_dir, ignore_errors=True)
+
+    # Delete vendor build artifacts
+    for d in ["vendor/build", "vendor/install"]:
+        if os.path.exists(d):
+            print(f"  Deleting {d}...")
+            shutil.rmtree(d, ignore_errors=True)
 
     # Delete result directory
     if os.path.exists("results"):
