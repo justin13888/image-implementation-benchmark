@@ -14,7 +14,7 @@ VENDOR_MOZJPEG = os.path.join(PROJECT_ROOT, "vendor", "install", "mozjpeg")
 def get_system_info() -> Dict[str, Any]:
     """Collect system information for reproducibility manifest."""
     info = {
-        "timestamp": datetime.datetime.now().isoformat() + "Z",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "os": f"{platform.system()} {platform.release()}",
         "kernel": platform.version(),
         "cpu": "unknown",

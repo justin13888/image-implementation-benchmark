@@ -40,6 +40,7 @@ def cmake_build(
     install_prefix,
     cmake_args=None,
     label=None,
+    extra_env=None,
 ):
     """Configure and build a CMake project."""
     build_dir = os.path.join(BUILD_DIR, build_subdir)
@@ -47,6 +48,8 @@ def cmake_build(
     os.makedirs(install_prefix, exist_ok=True)
 
     env = os.environ.copy()
+    if extra_env:
+        env.update(extra_env)
     cflags = " ".join(OPT_FLAGS)
     env["CFLAGS"] = cflags
     env["CXXFLAGS"] = cflags
@@ -332,9 +335,8 @@ def build_libavif():
     for extra in _glob.glob(os.path.join(INSTALL_COMMON, "lib", "*", "pkgconfig")):
         pkg_lib_dirs.append(extra)
 
-    env = os.environ.copy()
-    existing_pkg = env.get("PKG_CONFIG_PATH", "")
-    env["PKG_CONFIG_PATH"] = ":".join(pkg_lib_dirs + ([existing_pkg] if existing_pkg else []))
+    existing_pkg = os.environ.get("PKG_CONFIG_PATH", "")
+    pkg_config_path = ":".join(pkg_lib_dirs + ([existing_pkg] if existing_pkg else []))
 
     cmake_build(
         src,
@@ -350,6 +352,7 @@ def build_libavif():
             f"-DCMAKE_PREFIX_PATH={INSTALL_COMMON}",
         ],
         label=label,
+        extra_env={"PKG_CONFIG_PATH": pkg_config_path},
     )
 
 

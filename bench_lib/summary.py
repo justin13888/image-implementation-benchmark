@@ -90,8 +90,8 @@ def generate_summary(
                         parsed_results[b_type][fmt].append(
                             {
                                 "name": impl_name,
-                                "mean": agg["mean_sum"],
-                                "stddev": agg["var_sum"] ** 0.5,
+                                "mean": agg["mean_sum"] / agg["count"],
+                                "stddev": (agg["var_sum"] / agg["count"]) ** 0.5,
                             }
                         )
 

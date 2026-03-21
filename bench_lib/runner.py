@@ -57,7 +57,7 @@ DATASET_FILES_CHECKED: Set[str] = set()
 
 # Cache input file list for re-use
 INPUT_FILES_CACHE: Dict[
-    tuple[DatasetId, ImageFormats, Optional[int]], Sequence[tuple[str, str]]
+    tuple[DatasetId, ImageFormats, QualityTier, Optional[int]], Sequence[tuple[str, str]]
 ] = {}
 
 
@@ -95,8 +95,8 @@ def get_input_files(
     Pre-generates input files for benchmark type if necessary.
     """
 
-    if (dataset_name, format, limit) in INPUT_FILES_CACHE:
-        return INPUT_FILES_CACHE[(dataset_name, format, limit)]
+    if (dataset_name, format, quality, limit) in INPUT_FILES_CACHE:
+        return INPUT_FILES_CACHE[(dataset_name, format, quality, limit)]
 
     # Get all files for the dataset
     dataset_files = get_dataset_files(dataset_name)
@@ -190,7 +190,7 @@ def get_input_files(
             f"Some input files not found {len(missing)} for '{dataset_name}': {','.join(missing[:5])}"
         )
 
-    INPUT_FILES_CACHE[(dataset_name, format, limit)] = input_files
+    INPUT_FILES_CACHE[(dataset_name, format, quality, limit)] = input_files
     return input_files
 
 
@@ -262,129 +262,132 @@ def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetri
 
     metrics: list[BenchmarkMetrics] = []
 
-    for i, task in enumerate(benches):
-        print(
-            f"[{i + 1}/{len(benches)}] Processing ({task.name()} >>>> ",
-            end=" ",
-            flush=True,
-        )
-
-        identifier = task.identifier()
-        format_ext = task.output_ext()
-        if task.impl.format is None or format_ext is None:
+    try:
+        for i, task in enumerate(benches):
             print(
-                f"{Fore.BLUE}Skipping collecting metrics for {task.name()} due to null format...{Style.RESET_ALL}"
+                f"[{i + 1}/{len(benches)}] Processing ({task.name()} >>>> ",
+                end=" ",
+                flush=True,
             )
-            continue
 
-        format_ext_str = FORMAT_EXT_MAP[format_ext]
-        output_path = os.path.join(temp_dir, f"{identifier}.{format_ext_str}")
-
-        # Obtain metric
-        try:
-            # Run implementation
-            start_time = time.time()
-            subprocess.run(
-                task.cmd(output_path),
-                shell=True,
-                check=True,
-            )
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-
-            # Verify implementation generated output
-            if not os.path.exists(output_path):
-                raise RuntimeError(
-                    f"Implementation {task.name()} was ran to collect metrics but output file not found at: {output_path}{Style.RESET_ALL}"
-                )
-
-            # 1. Get file size
-            try:
-                filesize = os.path.getsize(output_path)
-            except Exception:
-                filesize = 0
-
-            # 2. Run (modified) ssimulacra2_rs binary.
-            score = -1.0
-            ssimulacra2_bin = os.path.join(
-                PROJECT_ROOT, "vendor", "build", "ssimulacra2", "release", "ssimulacra2_rs"
-            )
-            res = subprocess.run(
-                [ssimulacra2_bin, "image", task.source_path, output_path],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            out_str = res.stdout.strip()  # Output is like "Score: 87.432321"
-
-            if re.fullmatch(r"^Score: -?\d+\.\d+$", out_str):
-                score = float(out_str.split(": ")[1])
-            else:
-                raise ValueError(f"Unable to parse SSIMULACRA 2 output: `{out_str}`")
-
-            # 3. Get image dimensions from source file
-            width, height, megapixels, bpp = 0, 0, 0.0, 0.0
-            try:
-                with PILImage.open(task.source_path) as img:
-                    width, height = img.size
-                    megapixels = (width * height) / 1_000_000
-                    if width > 0 and height > 0 and filesize > 0:
-                        bpp = (filesize * 8) / (width * height)
-            except Exception as img_err:
+            identifier = task.identifier()
+            format_ext = task.output_ext()
+            if task.impl.format is None or format_ext is None:
                 print(
-                    f"{Fore.YELLOW}Warning: Could not get dimensions: {img_err}{Style.RESET_ALL}"
+                    f"{Fore.BLUE}Skipping collecting metrics for {task.name()} due to null format...{Style.RESET_ALL}"
+                )
+                continue
+
+            format_ext_str = FORMAT_EXT_MAP[format_ext]
+            output_path = os.path.join(temp_dir, f"{identifier}.{format_ext_str}")
+
+            # Obtain metric
+            try:
+                # Run implementation
+                start_time = time.time()
+                subprocess.run(
+                    task.cmd(output_path),
+                    shell=True,
+                    check=True,
+                )
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+
+                # Verify implementation generated output
+                if not os.path.exists(output_path):
+                    raise RuntimeError(
+                        f"Implementation {task.name()} was ran to collect metrics but output file not found at: {output_path}{Style.RESET_ALL}"
+                    )
+
+                # 1. Get file size
+                try:
+                    filesize = os.path.getsize(output_path)
+                except Exception:
+                    filesize = 0
+
+                # 2. Run (modified) ssimulacra2_rs binary.
+                score = -1.0
+                ssimulacra2_bin = os.path.join(
+                    PROJECT_ROOT, "vendor", "build", "ssimulacra2", "release", "ssimulacra2_rs"
+                )
+                res = subprocess.run(
+                    [ssimulacra2_bin, "image", task.source_path, output_path],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                out_str = res.stdout.strip()  # Output is like "Score: 87.432321"
+
+                if re.fullmatch(r"^Score: -?\d+\.\d+$", out_str):
+                    score = float(out_str.split(": ")[1])
+                else:
+                    raise ValueError(f"Unable to parse SSIMULACRA 2 output: `{out_str}`")
+
+                # 3. Get image dimensions from source file
+                width, height, megapixels, bpp = 0, 0, 0.0, 0.0
+                try:
+                    with PILImage.open(task.source_path) as img:
+                        width, height = img.size
+                        megapixels = (width * height) / 1_000_000
+                        if width > 0 and height > 0 and filesize > 0:
+                            bpp = (filesize * 8) / (width * height)
+                except Exception as img_err:
+                    print(
+                        f"{Fore.YELLOW}Warning: Could not get dimensions: {img_err}{Style.RESET_ALL}"
+                    )
+
+                print(
+                    f"{Fore.GREEN}✓ Size: {humanize.naturalsize(filesize, binary=True)}, Score: {score:.2f}, bpp: {bpp:.3f} {Style.RESET_ALL}(took {elapsed_time:.1f} s)"
                 )
 
-            print(
-                f"{Fore.GREEN}✓ Size: {humanize.naturalsize(filesize, binary=True)}, Score: {score:.2f}, bpp: {bpp:.3f} {Style.RESET_ALL}(took {elapsed_time:.1f} s)"
-            )
-
-            metrics.append(
-                BenchmarkMetrics(
-                    name=task.name(),
-                    impl=task.impl.name,
-                    quality=task.quality.value,
-                    input_path=task.input_path,
-                    source_path=task.source_path,
-                    filesize=filesize,
-                    ssimulacra2=score,
-                    error=None,
-                    type=task.impl.type.value,
-                    format=task.impl.format.value,
-                    width=width,
-                    height=height,
-                    megapixels=megapixels,
-                    bpp=bpp,
+                metrics.append(
+                    BenchmarkMetrics(
+                        name=task.name(),
+                        impl=task.impl.name,
+                        quality=task.quality.value,
+                        input_path=task.input_path,
+                        source_path=task.source_path,
+                        filesize=filesize,
+                        ssimulacra2=score,
+                        error=None,
+                        type=task.impl.type.value,
+                        format=task.impl.format.value,
+                        width=width,
+                        height=height,
+                        megapixels=megapixels,
+                        bpp=bpp,
+                    )
                 )
-            )
-        except Exception as e:
-            print(f"{Fore.RED}✗ Error running {task.name()}: {e}")
-            if isinstance(e, subprocess.CalledProcessError):
-                if e.stderr:
-                    print(f"{Fore.YELLOW}Standard Error Output:")
-                    print(f"{Fore.WHITE}{e.stderr.strip()}")
-                if e.stdout:
-                    print(f"{Fore.YELLOW}Standard Output (at time of failure):")
-                    print(f"{Fore.WHITE}{e.stdout.strip()}")
+            except Exception as e:
+                print(f"{Fore.RED}✗ Error running {task.name()}: {e}")
+                if isinstance(e, subprocess.CalledProcessError):
+                    if e.stderr:
+                        print(f"{Fore.YELLOW}Standard Error Output:")
+                        print(f"{Fore.WHITE}{e.stderr.strip()}")
+                    if e.stdout:
+                        print(f"{Fore.YELLOW}Standard Output (at time of failure):")
+                        print(f"{Fore.WHITE}{e.stdout.strip()}")
 
-            metrics.append(
-                BenchmarkMetrics(
-                    name=task.name(),
-                    impl=task.impl.name,
-                    quality=task.quality.value,
-                    input_path=task.input_path,
-                    source_path=task.source_path,
-                    filesize=0,
-                    ssimulacra2=-1.0,
-                    error=str(e),
-                    type=task.impl.type.value,
-                    format=task.impl.format.value,
-                    width=0,
-                    height=0,
-                    megapixels=0.0,
-                    bpp=0.0,
+                metrics.append(
+                    BenchmarkMetrics(
+                        name=task.name(),
+                        impl=task.impl.name,
+                        quality=task.quality.value,
+                        input_path=task.input_path,
+                        source_path=task.source_path,
+                        filesize=0,
+                        ssimulacra2=-1.0,
+                        error=str(e),
+                        type=task.impl.type.value,
+                        format=task.impl.format.value,
+                        width=0,
+                        height=0,
+                        megapixels=0.0,
+                        bpp=0.0,
+                    )
                 )
-            )
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
     return metrics
 
@@ -521,7 +524,7 @@ def run(args: RunArgs):
         **get_system_info(),
         "compiler": get_compiler_versions(),
         "libraries": get_library_versions(),
-        "allocator": "mimalloc 2.1.2",
+        "allocator": "mimalloc 2.1.7",
         "benchmark_config": {
             "formats": formats,
             "mode": args.mode,
@@ -627,11 +630,7 @@ def run(args: RunArgs):
 
     # Measure memory if requested
     if args.measure_memory:
-        # TODO: Implement memory measurement
-        # measure_memory(
-        #     result_dir, [cmd for _, cmd in benches], [name for name, _ in benches]
-        # )
-        pass
+        print(f"{Fore.YELLOW}Warning: --measure-memory is not yet implemented and has no effect.{Style.RESET_ALL}")
 
     print("\n" + "=" * 70)
     print("RESULTS")
@@ -643,8 +642,6 @@ def run(args: RunArgs):
         print("  - metrics.json   : File sizes and SSIMULACRA 2 scores")
     if not args.no_benchmarks:
         print("  - summary.md     : Human-readable tables")
-        if args.measure_memory:
-            print("  - memory.csv     : Peak memory usage")
     print()
 
 
