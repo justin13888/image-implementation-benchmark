@@ -277,10 +277,3 @@ echo "  - data/kodak/          : 24 KODAK images (~0.4MP)"
 echo "  - data/div2k/          : DIV2K dataset + 20 selected (2K/4K)"
 echo "  - data/pathological/   : 4 synthetic stress tests"
 echo "  - data/test*.{jpg,png} : JPEG and PNG reference encodings"
-if [ ${#OPTIONAL_TOOLS[@]} -ne 0 ]; then
-    echo
-    echo "Note: To benchmark all formats, install optional tools:"
-    for tool in "${OPTIONAL_TOOLS[@]}"; do
-        echo "  - $tool"
-    done
-fi

@@ -99,6 +99,18 @@ struct RGBImage {
   std::vector<uint8_t> data;
 };
 
+/// Reads an entire binary file into a vector.
+inline std::vector<uint8_t> read_binary_file(const std::string& path) {
+  std::ifstream file(path, std::ios::binary | std::ios::ate);
+  if (!file) throw std::runtime_error("Failed to open input file: " + path);
+  std::streamsize size = file.tellg();
+  file.seekg(0, std::ios::beg);
+  std::vector<uint8_t> data(size);
+  if (!file.read(reinterpret_cast<char*>(data.data()), size))
+    throw std::runtime_error("Failed to read input file");
+  return data;
+}
+
 inline RGBImage decode_ppm_rgb8(const std::string& input_path) {
   std::ifstream file(input_path, std::ios::binary | std::ios::ate);
   if (!file)

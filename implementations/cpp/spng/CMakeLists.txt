@@ -16,13 +16,13 @@ endif()
 include_directories(../../../harness/cpp)
 
 find_package(ZLIB REQUIRED)
+find_package(mimalloc REQUIRED)
 pkg_check_modules(SPNG spng REQUIRED IMPORTED_TARGET)
-pkg_check_modules(MIMALLOC mimalloc REQUIRED IMPORTED_TARGET)
 
 # Decoder binary
 add_executable(bench-spng-decode decode.cpp)
-target_link_libraries(bench-spng-decode PkgConfig::SPNG PkgConfig::MIMALLOC ZLIB::ZLIB)
+target_link_libraries(bench-spng-decode PkgConfig::SPNG ZLIB::ZLIB mimalloc-static)
 
 # Encoder binary
 add_executable(bench-spng-encode encode.cpp)
-target_link_libraries(bench-spng-encode PkgConfig::SPNG PkgConfig::MIMALLOC ZLIB::ZLIB)
+target_link_libraries(bench-spng-encode PkgConfig::SPNG ZLIB::ZLIB mimalloc-static)

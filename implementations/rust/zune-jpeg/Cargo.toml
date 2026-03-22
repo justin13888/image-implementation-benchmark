@@ -11,4 +11,3 @@ path = "src/decode.rs"
 benchmark-harness = { path = "../../../harness/rust" }
 zune-jpeg = "0.5"
 anyhow = "1.0"
-image = { version = "0.25.9", default-features = false, features = ["pnm"] }

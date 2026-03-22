@@ -22,10 +22,16 @@ impl BenchmarkImplementation for Rav1eBench {
         // Load the raw image data (PPM format expected)
         let (width, height, rgb_data) = benchmark_harness::decode_ppm_rgb8(&args.input)?;
 
+        // rav1e quantizer (0=lossless, 255=worst) to AVIF quality (0-100) conversion:
+        // rav1e_quantizer ≈ (100 - avif_quality) * 255 / 100
+        // README target: web-low=Q65/Speed6, web-high=Q65/Grain Synth, archival=Q85/YUV444
+        // Q65 → (100-65)*255/100 ≈ 89; Q85 → (100-85)*255/100 ≈ 38
+        // TODO: web-high should enable film grain synthesis (rav1e EncoderConfig::film_grain_params)
+        // to match README spec; currently omitted as it requires calibrated noise parameters.
         let (quantizer, speed, chroma_sampling) = match args.quality {
-            Quality::WebLow => (100, 9u8, ChromaSampling::Cs420),
-            Quality::WebHigh => (80, 7u8, ChromaSampling::Cs420),
-            Quality::Archival => (50, 4u8, ChromaSampling::Cs444),
+            Quality::WebLow => (89, 6u8, ChromaSampling::Cs420),
+            Quality::WebHigh => (89, 6u8, ChromaSampling::Cs420),
+            Quality::Archival => (38, 4u8, ChromaSampling::Cs444),
         };
 
         Ok(Box::new(BenchContext {

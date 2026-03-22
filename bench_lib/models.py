@@ -2,6 +2,7 @@
 
 import os
 import secrets
+import shlex
 import threading
 from enum import Enum
 from itertools import chain
@@ -516,8 +517,6 @@ class CleanArgs(BaseModel):
         Field(description="Skip confirmation prompt"),
     ] = False
 
-    pass
-
 
 class CompileArgs(BaseModel):
     """Compile the project."""
@@ -527,8 +526,6 @@ class CompileArgs(BaseModel):
         tyro.conf.EnumChoicesFromValues,
         Field(description="List of implementations to compile."),
     ] = None
-
-    pass
 
 
 class SetupArgs(BaseModel):
@@ -635,7 +632,7 @@ class BenchmarkTask(BaseModel):
         if self.pin_cores:
             cmd_parts = ["taskset", "-c", "0-3"] + cmd_parts
 
-        command = " ".join(cmd_parts)
+        command = shlex.join(cmd_parts)
 
         return command
 

@@ -31,7 +31,7 @@ def generate_summary(
 
         # Perform all your write operations to the buffer
         buffer.write("# Benchmark Results\n\n")
-        buffer.write(f"Generated: {datetime.datetime.now().isoformat()}\n\n")
+        buffer.write(f"Generated: {datetime.datetime.now(datetime.timezone.utc).isoformat()}\n\n")
 
         # Process raw JSON data if available
         if raw_json_path is not None:

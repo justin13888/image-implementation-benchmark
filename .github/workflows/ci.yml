@@ -36,7 +36,7 @@ jobs:
           path: |
             vendor/install
             vendor/build/ssimulacra2
-          key: vendor-${{ runner.os }}-${{ hashFiles('.gitmodules') }}
+          key: vendor-${{ runner.os }}-${{ hashFiles('.gitmodules') }}-${{ hashFiles('.git/modules/**/HEAD') }}
 
       - name: Install system build tools
         run: |
@@ -85,7 +85,7 @@ jobs:
           path: |
             vendor/install
             vendor/build/ssimulacra2
-          key: vendor-${{ runner.os }}-${{ hashFiles('.gitmodules') }}
+          key: vendor-${{ runner.os }}-${{ hashFiles('.gitmodules') }}-${{ hashFiles('.git/modules/**/HEAD') }}
 
       - name: Install system build tools
         run: |

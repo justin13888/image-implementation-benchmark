@@ -46,6 +46,7 @@ from bench_lib.models import (
 )
 from bench_lib.summary import generate_summary
 from bench_lib.system_info import (
+    _detect_mimalloc_version,
     get_compiler_versions,
     get_library_versions,
     get_system_info,
@@ -524,7 +525,7 @@ def run(args: RunArgs):
         **get_system_info(),
         "compiler": get_compiler_versions(),
         "libraries": get_library_versions(),
-        "allocator": "mimalloc 2.1.7",
+        "allocator": f"mimalloc {_detect_mimalloc_version()}",
         "benchmark_config": {
             "formats": formats,
             "mode": args.mode,

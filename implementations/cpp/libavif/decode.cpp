@@ -1,7 +1,6 @@
 #include <avif/avif.h>
 
 #include <cstring>
-#include <fstream>
 #include <stdexcept>
 #include <vector>
 
@@ -12,14 +11,8 @@ class LibAvifBench : public BenchmarkImplementation {
   std::string name() const override { return "libavif-decode"; }
 
   void prepare(const Args &args) override {
-    std::ifstream file(args.input, std::ios::binary | std::ios::ate);
-    if (!file)
-      throw std::runtime_error("Failed to open input file: " + args.input);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-    input_data.resize(size);
-    if (!file.read(reinterpret_cast<char *>(input_data.data()), size))
-      throw std::runtime_error("Failed to read input file");
+    input_data = read_binary_file(args.input);
+    threads = args.threads;
   }
 
   std::vector<uint8_t> run(const Args &args) override {
@@ -33,23 +26,28 @@ class LibAvifBench : public BenchmarkImplementation {
 
     // Force aom AV1 decoder for a fair comparison against dav1d-decode
     avifDecoderSetCodecChoice(decoder, AVIF_CODEC_CHOICE_AOM);
+    if (threads > 0) {
+      decoder->maxThreads = threads;
+    }
+
+    struct DecoderGuard {
+      avifDecoder *d;
+      ~DecoderGuard() { avifDecoderDestroy(d); }
+    } guard{decoder};
 
     avifResult result =
         avifDecoderSetIOMemory(decoder, data.data(), data.size());
     if (result != AVIF_RESULT_OK) {
-      avifDecoderDestroy(decoder);
       throw std::runtime_error("avifDecoderSetIOMemory failed");
     }
 
     result = avifDecoderParse(decoder);
     if (result != AVIF_RESULT_OK) {
-      avifDecoderDestroy(decoder);
       throw std::runtime_error("avifDecoderParse failed");
     }
 
     result = avifDecoderNextImage(decoder);
     if (result != AVIF_RESULT_OK) {
-      avifDecoderDestroy(decoder);
       throw std::runtime_error("avifDecoderNextImage failed");
     }
 
@@ -63,7 +61,6 @@ class LibAvifBench : public BenchmarkImplementation {
     result = avifImageYUVToRGB(decoder->image, &rgb);
     if (result != AVIF_RESULT_OK) {
       avifRGBImageFreePixels(&rgb);
-      avifDecoderDestroy(decoder);
       throw std::runtime_error("avifImageYUVToRGB failed");
     }
 
@@ -76,12 +73,12 @@ class LibAvifBench : public BenchmarkImplementation {
     }
 
     avifRGBImageFreePixels(&rgb);
-    avifDecoderDestroy(decoder);
 
     return encode_ppm_rgb8(rgb.width, rgb.height, rgb_data);
   }
 
   std::vector<uint8_t> input_data;
+  int threads = 0;
 };
 
 int main(int argc, char **argv) {

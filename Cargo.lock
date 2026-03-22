@@ -277,7 +277,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "benchmark-harness",
- "image",
  "zune-jpeg 0.5.5",
 ]
 

@@ -1,4 +1,3 @@
-#include <fstream>
 #include <stdexcept>
 #include <vector>
 
@@ -10,15 +9,7 @@ class LibJpegBench : public BenchmarkImplementation {
   std::string name() const override { return "libjpeg-turbo-decode"; }
 
   void prepare(const Args &args) override {
-    // Load input file
-    std::ifstream file(args.input, std::ios::binary | std::ios::ate);
-    if (!file)
-      throw std::runtime_error("Failed to open input file: " + args.input);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-    input_data.resize(size);
-    if (!file.read(reinterpret_cast<char *>(input_data.data()), size))
-      throw std::runtime_error("Failed to read input file");
+    input_data = read_binary_file(args.input);
   }
 
   std::vector<uint8_t> run(const Args &args) override {

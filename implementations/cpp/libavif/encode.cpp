@@ -60,6 +60,9 @@ class LibAvifEncodeBench : public BenchmarkImplementation {
     encoder->quality = quality;
     encoder->qualityAlpha = quality;
     encoder->speed = speed;
+    if (args.threads > 0) {
+      encoder->maxThreads = args.threads;
+    }
 
     avifRWData output = AVIF_DATA_EMPTY;
     avifResult result = avifEncoderWrite(encoder, image, &output);

@@ -3,7 +3,6 @@
 #include <jxl/thread_parallel_runner.h>
 #include <jxl/thread_parallel_runner_cxx.h>
 
-#include <iostream>
 #include <stdexcept>
 #include <vector>
 
@@ -20,77 +19,13 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
                      ? args.threads
                      : JxlThreadParallelRunnerDefaultNumWorkerThreads());
 
-    // Load input PPM file
-    std::ifstream file(args.input, std::ios::binary | std::ios::ate);
-    if (!file)
-      throw std::runtime_error("Failed to open input file: " + args.input);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-    std::vector<char> buffer(size);
-    if (!file.read(buffer.data(), size))
-      throw std::runtime_error("Failed to read input file");
-
-    // Parse PPM
-    const char *data = buffer.data();
-    if (buffer.size() < 3 || data[0] != 'P' || data[1] != '6') {
-      throw std::runtime_error("Input must be PPM P6 format");
-    }
-
-    size_t pos = 3;
-    auto skip_whitespace = [&]() {
-      while (pos < buffer.size() && (data[pos] == ' ' || data[pos] == '\n' ||
-                                     data[pos] == '\r' || data[pos] == '\t')) {
-        pos++;
-      }
-    };
-
-    auto skip_comments = [&]() {
-      while (pos < buffer.size() && data[pos] == '#') {
-        while (pos < buffer.size() && data[pos] != '\n') pos++;
-        pos++;
-      }
-    };
-
-    skip_whitespace();
-    skip_comments();
-
-    // Read Width
-    width = 0;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
-      width = width * 10 + (data[pos] - '0');
-      pos++;
-    }
-    skip_whitespace();
-    skip_comments();
-
-    // Read Height
-    height = 0;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
-      height = height * 10 + (data[pos] - '0');
-      pos++;
-    }
-    skip_whitespace();
-    skip_comments();
-
-    // Read MaxVal
-    max_val = 0;
-    while (pos < buffer.size() && data[pos] >= '0' && data[pos] <= '9') {
-      max_val = max_val * 10 + (data[pos] - '0');
-      pos++;
-    }
-
-    if (pos < buffer.size() && isspace(data[pos])) {
-      pos++;
-    }
-
-    int bytes_per_channel = (max_val > 255) ? 2 : 1;
-    size_t expected_bytes = (size_t)width * height * 3 * bytes_per_channel;
-
-    if (pos + expected_bytes > buffer.size()) {
-      throw std::runtime_error("Incomplete P6 file");
-    }
-
-    input_data.assign(data + pos, data + pos + expected_bytes);
+    // Load and parse PPM input via the shared harness helper (8-bit pipeline)
+    RGBImage img = decode_ppm_rgb8(args.input);
+    width = img.width;
+    height = img.height;
+    input_data = std::move(img.data);
+    // Pipeline is 8-bit only; max_val is always 255
+    max_val = 255;
 
     // Configure quality settings
     if (args.quality == "web-low") {

@@ -209,11 +209,11 @@ def build_projects(formats: list[ImageFormat]):
     print(f"{Fore.BLUE}{'=' * 70}\nBUILDING PROJECTS\n{'=' * 70}")
 
     # Build vendored C/C++ libraries and ssimulacra2
-    print(f"{Fore.BLUE}\n[0/3] Building vendored dependencies...")
+    print(f"{Fore.BLUE}\n[Step 1/3] Building vendored dependencies...")
     build_vendor_deps()
 
     # Build Rust projects
-    print(f"{Fore.BLUE}\n[1/3] Building Rust projects...")
+    print(f"{Fore.BLUE}\n[Step 2/3] Building Rust projects...")
     try:
         env = os.environ.copy()
         env["RUSTFLAGS"] = "-C target-cpu=native"
@@ -224,7 +224,7 @@ def build_projects(formats: list[ImageFormat]):
         sys.exit(1)
 
     # Build C++ projects
-    print(f"{Fore.BLUE}\n[2/3] Building C++ projects...")
+    print(f"{Fore.BLUE}\n[Step 3/3] Building C++ projects...")
 
     to_build = []
     for fmt in formats:
@@ -234,8 +234,9 @@ def build_projects(formats: list[ImageFormat]):
         ):
             if impl.lang == "cpp":
                 to_build.append(impl)
-    print(f"{Fore.YELLOW}[3/3] Starting 3 simultaneous C++ builds...\n")
-    with ThreadPoolExecutor(max_workers=3) as executor:
+    num_workers = min(len(to_build), 3) if to_build else 1
+    print(f"{Fore.YELLOW}Starting {num_workers} simultaneous C++ builds...\n")
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
         results = list(executor.map(build_cpp_project, to_build))
 
     # Check results

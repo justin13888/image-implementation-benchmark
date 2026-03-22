@@ -3,7 +3,6 @@
 #include <jxl/resizable_parallel_runner.h>
 #include <jxl/resizable_parallel_runner_cxx.h>
 
-#include <fstream>
 #include <stdexcept>
 #include <vector>
 
@@ -14,26 +13,25 @@ class LibJxlBench : public BenchmarkImplementation {
   std::string name() const override { return "libjxl-decode"; }
 
   void prepare(const Args &args) override {
-    std::ifstream file(args.input, std::ios::binary | std::ios::ate);
-    if (!file)
-      throw std::runtime_error("Failed to open input file: " + args.input);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-    input_data.resize(size);
-    if (!file.read(reinterpret_cast<char *>(input_data.data()), size))
-      throw std::runtime_error("Failed to read input file");
+    input_data = read_binary_file(args.input);
+
+    // Create thread pool once; reused across all decode() iterations.
+    // Use args.threads when specified (> 0), otherwise let the runner decide.
+    runner = JxlResizableParallelRunnerMake(nullptr);
+    size_t num_threads = args.threads > 0
+                             ? static_cast<size_t>(args.threads)
+                             : JxlResizableParallelRunnerSuggestThreads(
+                                   input_data.size(), 0);
+    JxlResizableParallelRunnerSetThreads(runner.get(), num_threads);
   }
 
   std::vector<uint8_t> run(const Args &args) override {
-    return decode(input_data);
+    return decode(args, input_data);
   }
 
  private:
-  std::vector<uint8_t> decode(const std::vector<uint8_t> &data) {
-    // TODO: Consider moving JxlResizableParallelRunnerMake to prepare() for
-    // better performance. Requires verifying the runner can be safely reused
-    // across multiple decode() calls with fresh decoders.
-    auto runner = JxlResizableParallelRunnerMake(nullptr);
+  std::vector<uint8_t> decode(const Args &args,
+                              const std::vector<uint8_t> &data) {
     auto dec = JxlDecoderMake(nullptr);
 
     if (JXL_DEC_SUCCESS !=
@@ -47,9 +45,6 @@ class LibJxlBench : public BenchmarkImplementation {
                                     runner.get())) {
       throw std::runtime_error("JxlDecoderSetParallelRunner failed");
     }
-
-    JxlResizableParallelRunnerSetThreads(
-        runner.get(), JxlResizableParallelRunnerSuggestThreads(data.size(), 0));
 
     JxlDecoderSetInput(dec.get(), data.data(), data.size());
     JxlDecoderCloseInput(dec.get());
@@ -70,9 +65,13 @@ class LibJxlBench : public BenchmarkImplementation {
         if (JXL_DEC_SUCCESS != JxlDecoderGetBasicInfo(dec.get(), &info)) {
           throw std::runtime_error("JxlDecoderGetBasicInfo failed");
         }
-        JxlResizableParallelRunnerSetThreads(
-            runner.get(),
-            JxlResizableParallelRunnerSuggestThreads(info.xsize, info.ysize));
+        // Only update thread count from image dimensions when --threads was not
+        // explicitly set; otherwise keep the user-specified thread count.
+        if (args.threads <= 0) {
+          JxlResizableParallelRunnerSetThreads(
+              runner.get(),
+              JxlResizableParallelRunnerSuggestThreads(info.xsize, info.ysize));
+        }
       } else if (status == JXL_DEC_NEED_IMAGE_OUT_BUFFER) {
         size_t buffer_size;
         if (JXL_DEC_SUCCESS !=
@@ -98,6 +97,7 @@ class LibJxlBench : public BenchmarkImplementation {
   }
 
   std::vector<uint8_t> input_data;
+  JxlResizableParallelRunnerPtr runner{nullptr};
 };
 
 int main(int argc, char **argv) {

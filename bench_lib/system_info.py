@@ -9,6 +9,7 @@ from typing import Dict, Any
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VENDOR_COMMON = os.path.join(PROJECT_ROOT, "vendor", "install", "common")
 VENDOR_MOZJPEG = os.path.join(PROJECT_ROOT, "vendor", "install", "mozjpeg")
+VENDOR_LIBJPEG_TURBO = os.path.join(PROJECT_ROOT, "vendor", "install", "libjpeg-turbo")
 
 
 def get_system_info() -> Dict[str, Any]:
@@ -74,15 +75,39 @@ def get_compiler_versions() -> Dict[str, str]:
     return versions
 
 
+def _detect_mimalloc_version() -> str:
+    """Parse mimalloc version from the vendored header (MI_MALLOC_VERSION)."""
+    header = os.path.join(PROJECT_ROOT, "vendor", "mimalloc", "include", "mimalloc.h")
+    try:
+        with open(header) as f:
+            for line in f:
+                if "MI_MALLOC_VERSION" in line and "#define" in line:
+                    # Format: #define MI_MALLOC_VERSION 217  // major + 2 digits minor
+                    parts = line.split()
+                    # parts: ['#define', 'MI_MALLOC_VERSION', '217', ...]
+                    raw = int(parts[2])
+                    major = raw // 100
+                    minor = (raw % 100) // 10
+                    patch = raw % 10
+                    return f"{major}.{minor}.{patch}"
+    except Exception:
+        pass
+    return "unknown"
+
+
 def get_library_versions() -> Dict[str, str]:
     """Attempt to determine versions of image libraries."""
     libraries = {}
 
-    # Build PKG_CONFIG_PATH to include vendored install prefix
+    # Build PKG_CONFIG_PATH to include vendored install prefixes.
+    # libjpeg-turbo installs to its own prefix, so include both.
     pkg_dirs = [
         os.path.join(VENDOR_COMMON, "lib", "pkgconfig"),
         os.path.join(VENDOR_COMMON, "lib64", "pkgconfig"),
         os.path.join(VENDOR_COMMON, "share", "pkgconfig"),
+        os.path.join(VENDOR_LIBJPEG_TURBO, "lib", "pkgconfig"),
+        os.path.join(VENDOR_LIBJPEG_TURBO, "lib64", "pkgconfig"),
+        os.path.join(VENDOR_LIBJPEG_TURBO, "share", "pkgconfig"),
     ]
     existing = os.environ.get("PKG_CONFIG_PATH", "")
     env = os.environ.copy()
@@ -133,7 +158,7 @@ def get_library_versions() -> Dict[str, str]:
         except Exception:
             pass
     libraries["mozjpeg"] = mozjpeg_version
-    libraries["mimalloc"] = "2.1.7"  # Pinned in vendor/mimalloc submodule
+    libraries["mimalloc"] = _detect_mimalloc_version()
     libraries["hyperfine"] = "unknown"
 
     try:

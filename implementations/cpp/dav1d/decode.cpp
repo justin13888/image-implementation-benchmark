@@ -2,7 +2,6 @@
 #include <dav1d/dav1d.h>
 
 #include <cstring>
-#include <fstream>
 #include <stdexcept>
 #include <vector>
 
@@ -13,17 +12,9 @@ class Dav1dBench : public BenchmarkImplementation {
   std::string name() const override { return "dav1d-decode"; }
 
   void prepare(const Args &args) override {
-    // Use libavif to extract the raw AV1 payload
-    std::ifstream file(args.input, std::ios::binary | std::ios::ate);
-    if (!file)
-      throw std::runtime_error("Failed to open input file: " + args.input);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-    std::vector<uint8_t> avif_data(size);
-    if (!file.read(reinterpret_cast<char *>(avif_data.data()), size))
-      throw std::runtime_error("Failed to read input file");
-
-    input_data = std::move(avif_data);
+    // Use libavif to extract the raw AV1 payload from the AVIF container
+    input_data = read_binary_file(args.input);
+    threads = args.threads;
   }
 
   std::vector<uint8_t> run(const Args &args) override {
@@ -37,6 +28,9 @@ class Dav1dBench : public BenchmarkImplementation {
 
     // Force dav1d AV1 decoder for a fair comparison against libavif-decode (aom)
     avifDecoderSetCodecChoice(decoder, AVIF_CODEC_CHOICE_DAV1D);
+    if (threads > 0) {
+      decoder->maxThreads = threads;
+    }
 
     // Ensure we clean up
     struct DecoderGuard {
@@ -87,6 +81,7 @@ class Dav1dBench : public BenchmarkImplementation {
   }
 
   std::vector<uint8_t> input_data;
+  int threads = 0;
 };
 
 int main(int argc, char **argv) {
