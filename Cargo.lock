@@ -277,6 +277,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "benchmark-harness",
+ "zune-core 0.5.0",
  "zune-jpeg 0.5.5",
 ]
 
@@ -286,7 +287,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "benchmark-harness",
- "image",
  "zune-core 0.5.0",
  "zune-jpegxl",
 ]
@@ -297,7 +297,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "benchmark-harness",
- "image",
  "zune-core 0.5.0",
  "zune-png",
 ]

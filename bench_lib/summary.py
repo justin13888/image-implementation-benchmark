@@ -31,7 +31,9 @@ def generate_summary(
 
         # Perform all your write operations to the buffer
         buffer.write("# Benchmark Results\n\n")
-        buffer.write(f"Generated: {datetime.datetime.now(datetime.timezone.utc).isoformat()}\n\n")
+        buffer.write(
+            f"Generated: {datetime.datetime.now(datetime.timezone.utc).isoformat()}\n\n"
+        )
 
         # Process raw JSON data if available
         if raw_json_path is not None:
@@ -64,6 +66,7 @@ def generate_summary(
                                 if base_name not in aggregated_results[bench_type][fmt]:
                                     aggregated_results[bench_type][fmt][base_name] = {
                                         "mean_sum": 0.0,
+                                        "mean_sq_sum": 0.0,
                                         "var_sum": 0.0,
                                         "count": 0,
                                     }
@@ -73,6 +76,7 @@ def generate_summary(
 
                                 agg = aggregated_results[bench_type][fmt][base_name]
                                 agg["mean_sum"] += mean_ms
+                                agg["mean_sq_sum"] += mean_ms**2
                                 agg["var_sum"] += stddev_ms**2
                                 agg["count"] += 1
                 except Exception:
@@ -87,11 +91,18 @@ def generate_summary(
                         continue  # null implementations have no format, skip
                     parsed_results[b_type][fmt] = []
                     for impl_name, agg in impls.items():
+                        n = agg["count"]
+                        grand_mean = agg["mean_sum"] / n
+                        # Pooled within-group variance (average of per-image variances)
+                        within_var = agg["var_sum"] / n
+                        # Between-group variance (variance of per-image means)
+                        between_var = agg["mean_sq_sum"] / n - grand_mean**2
+                        combined_stddev = (within_var + max(between_var, 0.0)) ** 0.5
                         parsed_results[b_type][fmt].append(
                             {
                                 "name": impl_name,
-                                "mean": agg["mean_sum"] / agg["count"],
-                                "stddev": (agg["var_sum"] / agg["count"]) ** 0.5,
+                                "mean": grand_mean,
+                                "stddev": combined_stddev,
                             }
                         )
 

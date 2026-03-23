@@ -8,6 +8,7 @@ import os
 import platform
 import random
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -58,7 +59,8 @@ DATASET_FILES_CHECKED: Set[str] = set()
 
 # Cache input file list for re-use
 INPUT_FILES_CACHE: Dict[
-    tuple[DatasetId, ImageFormats, QualityTier, Optional[int]], Sequence[tuple[str, str]]
+    tuple[DatasetId, ImageFormats, QualityTier, Optional[int]],
+    Sequence[tuple[str, str]],
 ] = {}
 
 
@@ -284,11 +286,10 @@ def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetri
 
             # Obtain metric
             try:
-                # Run implementation
+                # Run implementation once (no warmup) to get the output file
                 start_time = time.time()
                 subprocess.run(
-                    task.cmd(output_path),
-                    shell=True,
+                    shlex.split(task.cmd(output_path, iterations=1, warmup=0)),
                     check=True,
                 )
                 end_time = time.time()
@@ -309,7 +310,12 @@ def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetri
                 # 2. Run (modified) ssimulacra2_rs binary.
                 score = -1.0
                 ssimulacra2_bin = os.path.join(
-                    PROJECT_ROOT, "vendor", "build", "ssimulacra2", "release", "ssimulacra2_rs"
+                    PROJECT_ROOT,
+                    "vendor",
+                    "build",
+                    "ssimulacra2",
+                    "release",
+                    "ssimulacra2_rs",
                 )
                 res = subprocess.run(
                     [ssimulacra2_bin, "image", task.source_path, output_path],
@@ -322,7 +328,9 @@ def generate_metrics(benches: BenchList, result_dir: str) -> list[BenchmarkMetri
                 if re.fullmatch(r"^Score: -?\d+\.\d+$", out_str):
                     score = float(out_str.split(": ")[1])
                 else:
-                    raise ValueError(f"Unable to parse SSIMULACRA 2 output: `{out_str}`")
+                    raise ValueError(
+                        f"Unable to parse SSIMULACRA 2 output: `{out_str}`"
+                    )
 
                 # 3. Get image dimensions from source file
                 width, height, megapixels, bpp = 0, 0, 0.0, 0.0
@@ -631,7 +639,12 @@ def run(args: RunArgs):
 
     # Measure memory if requested
     if args.measure_memory:
-        print(f"{Fore.YELLOW}Warning: --measure-memory is not yet implemented and has no effect.{Style.RESET_ALL}")
+        mem_commands = [
+            task.cmd("/dev/null", iterations=1, warmup=0) for task in benches
+        ]
+        mem_names = [task.name() for task in benches]
+        measure_memory(result_dir, mem_commands, mem_names)
+        print("  - memory.csv     : Peak RSS measurements")
 
     print("\n" + "=" * 70)
     print("RESULTS")

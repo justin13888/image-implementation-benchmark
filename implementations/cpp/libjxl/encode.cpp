@@ -24,8 +24,6 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
     width = img.width;
     height = img.height;
     input_data = std::move(img.data);
-    // Pipeline is 8-bit only; max_val is always 255
-    max_val = 255;
 
     // Configure quality settings
     if (args.quality == "web-low") {
@@ -54,23 +52,11 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
 
     JxlPixelFormat pixel_format = {3, JXL_TYPE_UINT8, JXL_LITTLE_ENDIAN, 0};
 
-    if (max_val > 255) {
-      pixel_format.data_type = JXL_TYPE_UINT16;
-      pixel_format.endianness = JXL_BIG_ENDIAN;
-    } else {
-      pixel_format.data_type = JXL_TYPE_UINT8;
-      pixel_format.endianness = JXL_LITTLE_ENDIAN;
-    }
-
     JxlBasicInfo basic_info;
     JxlEncoderInitBasicInfo(&basic_info);
     basic_info.xsize = width;
     basic_info.ysize = height;
-    if (max_val > 255) {
-      basic_info.bits_per_sample = 16;
-    } else {
-      basic_info.bits_per_sample = 8;
-    }
+    basic_info.bits_per_sample = 8;
     basic_info.uses_original_profile = JXL_TRUE;
 
     if (JXL_ENC_SUCCESS != JxlEncoderSetBasicInfo(enc.get(), &basic_info)) {
@@ -132,7 +118,6 @@ class LibJxlEncodeBench : public BenchmarkImplementation {
   std::vector<uint8_t> input_data;
   int width;
   int height;
-  int max_val;
   float distance;
   int effort;
   bool lossless;

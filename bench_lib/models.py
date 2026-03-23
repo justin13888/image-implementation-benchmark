@@ -105,9 +105,7 @@ def _get_div2k_files() -> list[str]:
     p = Path("data/div2k/selected.txt")
     if p.exists():
         lines = p.read_text().splitlines()
-        return [
-            f"data/div2k/DIV2K_train_HR/{name}" for name in lines if name.strip()
-        ]
+        return [f"data/div2k/DIV2K_train_HR/{name}" for name in lines if name.strip()]
     return []
 
 
@@ -523,7 +521,6 @@ class CompileArgs(BaseModel):
 
     implementations: Annotated[
         Optional[list[str]],
-        tyro.conf.EnumChoicesFromValues,
         Field(description="List of implementations to compile."),
     ] = None
 
@@ -597,9 +594,17 @@ class BenchmarkTask(BaseModel):
         else:
             return self.impl.format
 
-    def cmd(self, output_path: str) -> str:
+    def cmd(
+        self,
+        output_path: str,
+        iterations: Optional[int] = None,
+        warmup: Optional[int] = None,
+    ) -> str:
         """
         Generate command based on output path.
+
+        Optional `iterations` and `warmup` override the task's stored values,
+        useful for one-shot metric collection runs.
         """
 
         binary = self.impl.bin
@@ -614,19 +619,15 @@ class BenchmarkTask(BaseModel):
             "--quality",
             self.quality.value,
             "--iterations",
-            str(self.iterations),
+            str(iterations if iterations is not None else self.iterations),
             "--warmup",
-            str(self.warmup),
+            str(warmup if warmup is not None else self.warmup),
             "--threads",
             str(self.threads),
         ]
 
         if self.discard_output:
             cmd_parts.append("--discard")
-
-        # Wrap with /usr/bin/time if measuring memory
-        if self.measure_memory:
-            cmd_parts = ["/usr/bin/time", "-v"] + cmd_parts
 
         # Wrap with taskset for core pinning (pin to cores 0-3 for consistency)
         if self.pin_cores:

@@ -33,6 +33,14 @@ impl BenchmarkImplementation for ZuneJpegBench {
             .ok_or_else(|| anyhow::anyhow!("Failed to get dimensions"))?;
         let pixels = decoder.decode().context("Failed to decode JPEG")?;
 
+        let colorspace = decoder
+            .output_colorspace()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine output colorspace"))?;
+        anyhow::ensure!(
+            colorspace == zune_core::colorspace::ColorSpace::RGB,
+            "Unsupported colorspace {:?}: only RGB is supported",
+            colorspace
+        );
         benchmark_harness::encode_ppm_rgb8(w as u32, h as u32, &pixels)
     }
 }

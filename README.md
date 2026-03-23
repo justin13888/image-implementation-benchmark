@@ -119,6 +119,18 @@ Use `./bench run` with a dataset. Always specify `--dataset` (default `test` has
 
 # Compile all benchmarks
 ./bench compile
+
+# Advanced: override inner-loop iterations / warmup (default: 10 / 2)
+./bench run --dataset kodak --iterations 20 --warmup 3
+
+# Advanced: skip the build step (if already built)
+./bench run --dataset kodak --skip-build
+
+# Advanced: metrics only, no hyperfine timing runs
+./bench run --dataset kodak --no-benchmarks
+
+# Advanced: timing runs only, no SSIMULACRA2 metrics
+./bench run --dataset kodak --no-metrics
 ```
 
 ### Cleanup
@@ -184,11 +196,16 @@ Choose your dataset based on your benchmarking goals:
 
 We benchmark against three distinct use cases. The CLI accepts tier names directly (`--quality web-low`), and each binary maps these to format-specific arguments internally.
 
-| Tier         | Intent            | JPEG                | AVIF             | JXL               | WEBP         |
-| :----------- | :---------------- | :------------------ | :--------------- | :---------------- | :----------- |
-| **web-low**  | Thumbnail/Preview | Q50, Baseline       | Q65, Speed 6     | d4.0, e7          | Q50, m4      |
-| **web-high** | Standard Delivery | Q80, Progressive    | Q65, Grain Synth | d1.0, e7          | Q75, m4      |
-| **archival** | High Fidelity     | Q95, No Subsampling | Q85, YUV444      | d0, e9 (Lossless) | Lossless, z6 |
+| Tier         | Intent            | JPEG                | AVIF                       | JXL               | WEBP           |
+| :----------- | :---------------- | :------------------ | :------------------------- | :---------------- | :------------- |
+| **web-low**  | Thumbnail/Preview | Q50, Baseline       | Q65, Speed 6               | d4.0, e7          | Q50, m4        |
+| **web-high** | Standard Delivery | Q80, Progressive    | Q65 *(grain synth TBD)*    | d1.0, e7          | Q75, m4 †      |
+| **archival** | High Fidelity     | Q95, No Subsampling | Q85, YUV444                | d0, e9 (Lossless) | Lossless, z6   |
+
+> **† Known limitations:**
+> - **AVIF web-high grain synthesis** is specified but not yet implemented in either `libavif` or `rav1e`. Both encoders currently use the same parameters as web-low for this tier. A TODO is tracked in each implementation.
+> - **image-webp** (Rust) only supports lossless WebP encoding (crate limitation). All three quality tiers produce lossless output. Exclude `image-webp` from lossy-tier comparisons until a lossy API is available.
+> - **spng** (C++) does not expose compression level control, so all three PNG quality tiers produce identical output for `spng-encode`.
 
 ### Benchmarking Architecture
 
@@ -238,7 +255,7 @@ The [benchmark harness](./bench) measures the visual similarity of the decoded o
 
 #### Discard Checksum
 
-When `--discard` is set, output bytes are fed through a CRC32 checksum (using hardware acceleration where available: `_mm_crc32_u64` on x86, `__crc32d` on ARM). This prevents compiler elimination of the encode/decode work while adding minimal overhead (~0.5 cycles/byte).
+When `--discard` is set, output bytes are fed through a CRC32 checksum to prevent compiler elimination of the encode/decode work. The C/C++ harness uses zlib's `crc32()` function; the Rust harness uses `crc32fast::Hasher`. Both libraries select hardware-accelerated implementations (e.g. SSE4.2, ARM CRC32) where available at compile time.
 
 #### Baseline Measurement
 
@@ -292,12 +309,13 @@ Built with `RUSTFLAGS="-C target-cpu=native"`.
 
 #### C/C++
 
-We use Clang for consistency:
+We use Clang for consistency. Each implementation's `CMakeLists.txt` builds with:
 
 ```bash
-clang/clang++ -O3 -flto=full -fwhole-program-vtables -fno-exceptions -fno-rtti \
-  -fstrict-aliasing -fomit-frame-pointer -march=native -DNDEBUG
+clang/clang++ -O3 -fwhole-program-vtables -fstrict-aliasing -fomit-frame-pointer -march=native -DNDEBUG
 ```
+
+Note that `-fno-exceptions` and `-fno-rtti` are intentionally **not** used because the implementations use C++ exceptions for error handling. LTO is not applied per-binary (the build is still fast due to ccache).
 
 **Note:** `-march=native` makes binaries specific to the host machine. Results are not portable across architectures.
 
@@ -353,7 +371,7 @@ We include modern formats and their most competitive implementations.
 | Implementation | Language | Notes                                     |
 | :------------- | :------- | :---------------------------------------- |
 | **libpng**     | C        | Reference implementation                  |
-| **spng**       | C        | "Simple PNG", speed-optimized             |
+| **spng**       | C        | "Simple PNG", speed-optimized. *Encoder does not expose compression level control; all quality tiers produce identical output.* |
 | **png**        | Rust     | Standard `image-rs` crate                 |
 | **zune-png**   | Rust     | Highly optimized pure Rust implementation |
 
@@ -362,7 +380,7 @@ We include modern formats and their most competitive implementations.
 | Implementation | Language | Notes                         |
 | :------------- | :------- | :---------------------------- |
 | **libwebp**    | C        | Reference implementation      |
-| **image-webp** | Rust     | Wrapper/native implementation |
+| **image-webp** | Rust     | *Lossless-only crate limitation — lossy tiers (web-low, web-high) produce lossless output. Exclude from lossy-tier comparisons.* |
 
 ### AVIF
 
@@ -370,7 +388,7 @@ We include modern formats and their most competitive implementations.
 | :------------- | :------- | :---------------------------------------- |
 | **libavif**    | C        | Reference (AOM/dav1d backend)             |
 | **dav1d**      | C/Asm    | Direct decoder (bypasses libavif wrapper) |
-| **rav1e**      | Rust     | Encoder                                   |
+| **rav1e**      | Rust     | Encoder. *Film grain synthesis (web-high) not yet implemented; web-high uses same parameters as web-low.* |
 
 <!-- | **rav1d**      | Rust     | Excluded due to API complexity and incomplete state. | -->
 

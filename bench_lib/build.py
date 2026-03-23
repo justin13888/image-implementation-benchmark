@@ -226,13 +226,15 @@ def build_projects(formats: list[ImageFormat]):
     # Build C++ projects
     print(f"{Fore.BLUE}\n[Step 3/3] Building C++ projects...")
 
+    seen: set[str] = set()
     to_build = []
     for fmt in formats:
         for impl in chain(
             NULL_IMPLEMENTATIONS,
             (impl for impl in IMPLEMENTATIONS if impl.format == fmt),
         ):
-            if impl.lang == "cpp":
+            if impl.lang == "cpp" and impl.name not in seen:
+                seen.add(impl.name)
                 to_build.append(impl)
     num_workers = min(len(to_build), 3) if to_build else 1
     print(f"{Fore.YELLOW}Starting {num_workers} simultaneous C++ builds...\n")

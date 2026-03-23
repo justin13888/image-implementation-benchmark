@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use benchmark_harness::{Args, BenchmarkImplementation};
-use jpeg_decoder::Decoder;
+use jpeg_decoder::{Decoder, PixelFormat};
 use std::fs;
 use std::io::Cursor;
 
@@ -30,8 +30,11 @@ impl BenchmarkImplementation for JpegDecoderBench {
         let pixels = decoder.decode().context("Failed to decode JPEG")?;
         let info = decoder.info().context("Failed to get image info")?;
 
-        // jpeg_decoder typically outputs RGB for standard JPEGs.
-        // We assume RGB (PixelFormat::RGB24).
+        anyhow::ensure!(
+            info.pixel_format == PixelFormat::RGB24,
+            "Unsupported pixel format {:?}: only RGB24 is supported",
+            info.pixel_format
+        );
         benchmark_harness::encode_ppm_rgb8(info.width as u32, info.height as u32, &pixels)
     }
 }

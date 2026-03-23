@@ -58,11 +58,13 @@ pub trait BenchmarkImplementation {
 pub fn main<I: BenchmarkImplementation>(impl_: I) -> Result<()> {
     let args = Args::parse();
 
-    // Set thread count
+    // Set thread count environment variables before any threads are spawned.
     if args.threads > 0 {
-        std::env::set_var("RAYON_NUM_THREADS", args.threads.to_string());
-        // Also try to set OMP_NUM_THREADS for C libraries
-        std::env::set_var("OMP_NUM_THREADS", args.threads.to_string());
+        // SAFETY: called at program start before any threads are spawned.
+        unsafe {
+            std::env::set_var("RAYON_NUM_THREADS", args.threads.to_string());
+            std::env::set_var("OMP_NUM_THREADS", args.threads.to_string());
+        }
     }
 
     let mut context = impl_

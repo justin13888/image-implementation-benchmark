@@ -10,4 +10,5 @@ path = "src/decode.rs"
 [dependencies]
 benchmark-harness = { path = "../../../harness/rust" }
 zune-jpeg = "0.5"
+zune-core = "0.5.0-rc1"
 anyhow = "1.0"

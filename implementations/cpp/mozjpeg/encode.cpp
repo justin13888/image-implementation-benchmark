@@ -1,4 +1,3 @@
-#include <fstream>
 #include <stdexcept>
 #include <vector>
 
@@ -19,12 +18,15 @@ class MozjpegEncodeBench : public BenchmarkImplementation {
     if (args.quality == "web-low") {
       quality = 50;
       progressive = false;
+      use_444 = false;
     } else if (args.quality == "web-high") {
       quality = 80;
       progressive = true;
+      use_444 = false;
     } else {  // archival
       quality = 95;
       progressive = false;
+      use_444 = true;
     }
   }
 
@@ -53,7 +55,7 @@ class MozjpegEncodeBench : public BenchmarkImplementation {
     }
 
     // Set subsampling for archival (4:4:4)
-    if (args.quality == "archival") {
+    if (use_444) {
       cinfo.comp_info[0].h_samp_factor = 1;
       cinfo.comp_info[0].v_samp_factor = 1;
       cinfo.comp_info[1].h_samp_factor = 1;
@@ -90,6 +92,7 @@ class MozjpegEncodeBench : public BenchmarkImplementation {
   int height;
   int quality;
   bool progressive;
+  bool use_444;
 };
 
 int main(int argc, char **argv) {
