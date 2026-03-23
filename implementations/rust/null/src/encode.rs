@@ -14,7 +14,9 @@ impl BenchmarkImplementation for NullEncodeBench {
 
     fn prepare(&self, args: &Args) -> Result<Box<dyn std::any::Any>> {
         let (_width, _height, rgb_data) = benchmark_harness::decode_ppm_rgb8(&args.input)?;
-        Ok(Box::new(BenchContext { input_data: rgb_data }))
+        Ok(Box::new(BenchContext {
+            input_data: rgb_data,
+        }))
     }
 
     fn run(&self, _args: &Args, context: &mut dyn std::any::Any) -> Result<Vec<u8>> {

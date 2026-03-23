@@ -277,7 +277,7 @@ def _generate_screenshot(dest: Path) -> None:
     """3840x2160 screenshot-like image with flat UI regions."""
     img = Image.new("RGB", (3840, 2160), (255, 255, 255))
     draw = ImageDraw.Draw(img)
-    draw.rectangle([0, 0, 3840, 100], fill=(45, 45, 45))      # dark top bar
+    draw.rectangle([0, 0, 3840, 100], fill=(45, 45, 45))  # dark top bar
     draw.rectangle([0, 100, 800, 2160], fill=(245, 245, 245))  # light sidebar
     # Main content area remains white
     img.save(dest, "PNG")
@@ -289,8 +289,8 @@ def _generate_alpha_gradient(dest: Path) -> None:
     data = np.zeros((height, width, 4), dtype=np.uint8)
     x = np.linspace(0, 1, width, dtype=np.float32)
     data[:, :, 0] = (255 * (1 - x)).astype(np.uint8)  # Red 255→0
-    data[:, :, 2] = (255 * x).astype(np.uint8)         # Blue 0→255
-    data[:, :, 3] = (255 * x).astype(np.uint8)         # Alpha 0→255
+    data[:, :, 2] = (255 * x).astype(np.uint8)  # Blue 0→255
+    data[:, :, 3] = (255 * x).astype(np.uint8)  # Alpha 0→255
     img = Image.fromarray(data, "RGBA")
     img.save(dest, "PNG")
 

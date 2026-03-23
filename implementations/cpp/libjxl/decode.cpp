@@ -18,10 +18,10 @@ class LibJxlBench : public BenchmarkImplementation {
     // Create thread pool once; reused across all decode() iterations.
     // Use args.threads when specified (> 0), otherwise let the runner decide.
     runner = JxlResizableParallelRunnerMake(nullptr);
-    size_t num_threads = args.threads > 0
-                             ? static_cast<size_t>(args.threads)
-                             : JxlResizableParallelRunnerSuggestThreads(
-                                   input_data.size(), 0);
+    size_t num_threads =
+        args.threads > 0
+            ? static_cast<size_t>(args.threads)
+            : JxlResizableParallelRunnerSuggestThreads(input_data.size(), 0);
     JxlResizableParallelRunnerSetThreads(runner.get(), num_threads);
   }
 
