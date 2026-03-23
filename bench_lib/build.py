@@ -115,7 +115,7 @@ def _get_pkg_config_path(prefix: str) -> str:
         os.path.join(prefix, "share", "pkgconfig"),
     ]
     existing = os.environ.get("PKG_CONFIG_PATH", "")
-    return ":".join(dirs + ([existing] if existing else []))
+    return os.pathsep.join(dirs + ([existing] if existing else []))
 
 
 def build_cpp_project(impl):

@@ -95,8 +95,13 @@ def build_mimalloc():
     label = "mimalloc"
     # mimalloc installs into a versioned subdir: lib64/mimalloc-<ver>/libmimalloc.a
     import glob as _glob
-    matches = _glob.glob(os.path.join(INSTALL_COMMON, "lib*", "mimalloc-*", "libmimalloc.a"))
-    sentinel = matches[0] if matches else os.path.join(INSTALL_COMMON, "lib", "libmimalloc.a")
+
+    matches = _glob.glob(
+        os.path.join(INSTALL_COMMON, "lib*", "mimalloc-*", "libmimalloc.a")
+    )
+    sentinel = (
+        matches[0] if matches else os.path.join(INSTALL_COMMON, "lib", "libmimalloc.a")
+    )
     if is_built(sentinel):
         print(f"  [{label}] Already built, skipping.")
         return
@@ -212,7 +217,9 @@ def build_dav1d():
         # Some distros put it in lib/x86_64-linux-gnu or similar
         import glob as _glob
 
-        matches = _glob.glob(os.path.join(INSTALL_COMMON, "**", "libdav1d.a"), recursive=True)
+        matches = _glob.glob(
+            os.path.join(INSTALL_COMMON, "**", "libdav1d.a"), recursive=True
+        )
         if matches:
             sentinel = matches[0]
     if is_built(sentinel):
@@ -281,7 +288,10 @@ if [[ "$*" == "-hf" ]]; then
 fi
 exec {nasm_real} "$@"
 """)
-    os.chmod(shim_path, os.stat(shim_path).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    os.chmod(
+        shim_path,
+        os.stat(shim_path).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH,
+    )
     return shim_path
 
 
@@ -332,11 +342,12 @@ def build_libavif():
     ]
     # Also search subdirs (e.g. x86_64-linux-gnu)
     import glob as _glob
+
     for extra in _glob.glob(os.path.join(INSTALL_COMMON, "lib", "*", "pkgconfig")):
         pkg_lib_dirs.append(extra)
 
     existing_pkg = os.environ.get("PKG_CONFIG_PATH", "")
-    pkg_config_path = ":".join(pkg_lib_dirs + ([existing_pkg] if existing_pkg else []))
+    pkg_config_path = os.pathsep.join(pkg_lib_dirs + ([existing_pkg] if existing_pkg else []))
 
     cmake_build(
         src,
@@ -447,7 +458,7 @@ def main():
     steps = [
         ("zlib", build_zlib),
         ("mimalloc", build_mimalloc),
-        ("libpng", build_libpng),   # must precede mozjpeg (mozjpeg find_package(PNG))
+        ("libpng", build_libpng),  # must precede mozjpeg (mozjpeg find_package(PNG))
         ("libjpeg-turbo", build_libjpeg_turbo),
         ("mozjpeg", build_mozjpeg),
         ("spng", build_spng),

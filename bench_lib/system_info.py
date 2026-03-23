@@ -4,7 +4,7 @@ import datetime
 import os
 import platform
 import subprocess
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VENDOR_COMMON = os.path.join(PROJECT_ROOT, "vendor", "install", "common")
@@ -95,69 +95,54 @@ def _detect_mimalloc_version() -> str:
     return "unknown"
 
 
+def _find_pc_file(prefix: str, module_name: str) -> Optional[str]:
+    """Search for <module_name>.pc under a vendor install prefix."""
+    for subdir in ("lib/pkgconfig", "lib64/pkgconfig", "share/pkgconfig"):
+        candidate = os.path.join(prefix, subdir, f"{module_name}.pc")
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
+def _parse_pc_version(pc_path: str) -> str:
+    """Extract Version from a .pc file."""
+    try:
+        with open(pc_path) as f:
+            for line in f:
+                if line.startswith("Version:"):
+                    return line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
 def get_library_versions() -> Dict[str, str]:
     """Attempt to determine versions of image libraries."""
     libraries = {}
 
-    # Build PKG_CONFIG_PATH to include vendored install prefixes.
-    # libjpeg-turbo installs to its own prefix, so include both.
-    pkg_dirs = [
-        os.path.join(VENDOR_COMMON, "lib", "pkgconfig"),
-        os.path.join(VENDOR_COMMON, "lib64", "pkgconfig"),
-        os.path.join(VENDOR_COMMON, "share", "pkgconfig"),
-        os.path.join(VENDOR_LIBJPEG_TURBO, "lib", "pkgconfig"),
-        os.path.join(VENDOR_LIBJPEG_TURBO, "lib64", "pkgconfig"),
-        os.path.join(VENDOR_LIBJPEG_TURBO, "share", "pkgconfig"),
+    # Libraries installed under VENDOR_COMMON
+    common_libs = [
+        ("libpng", "libpng"),
+        ("libwebp", "libwebp"),
+        ("libavif", "libavif"),
+        ("dav1d", "dav1d"),
+        ("libjxl", "libjxl"),
+        ("spng", "libspng"),
+        ("aom", "aom"),
+        ("zlib", "zlib"),
     ]
-    existing = os.environ.get("PKG_CONFIG_PATH", "")
-    env = os.environ.copy()
-    env["PKG_CONFIG_PATH"] = ":".join(pkg_dirs + ([existing] if existing else []))
+    for display_name, module_name in common_libs:
+        pc = _find_pc_file(VENDOR_COMMON, module_name)
+        libraries[display_name] = _parse_pc_version(pc) if pc else "unknown"
 
-    libs_to_check = [
-        "libjpeg-turbo",
-        "libpng",
-        "libwebp",
-        "libavif",
-        "dav1d",
-        "libjxl",
-    ]
+    # libjpeg-turbo installs to its own prefix; .pc module is libturbojpeg
+    pc = _find_pc_file(VENDOR_LIBJPEG_TURBO, "libturbojpeg")
+    libraries["libjpeg-turbo"] = _parse_pc_version(pc) if pc else "unknown"
 
-    for lib in libs_to_check:
-        try:
-            result = (
-                subprocess.check_output(
-                    ["pkg-config", "--modversion", lib],
-                    stderr=subprocess.DEVNULL,
-                    env=env,
-                )
-                .decode()
-                .strip()
-            )
-            libraries[lib] = result
-        except Exception:
-            libraries[lib] = "unknown"
+    # mozjpeg installs to its own prefix; .pc module is libjpeg
+    pc = _find_pc_file(VENDOR_MOZJPEG, "libjpeg")
+    libraries["mozjpeg"] = _parse_pc_version(pc) if pc else "unknown"
 
-    # Detect mozjpeg version from vendored .pc file
-    mozjpeg_pc = os.path.join(VENDOR_MOZJPEG, "lib64", "pkgconfig", "libjpeg.pc")
-    if not os.path.exists(mozjpeg_pc):
-        mozjpeg_pc = os.path.join(VENDOR_MOZJPEG, "lib", "pkgconfig", "libjpeg.pc")
-    mozjpeg_version = "unknown"
-    if os.path.exists(mozjpeg_pc):
-        try:
-            mozjpeg_env = os.environ.copy()
-            mozjpeg_env["PKG_CONFIG_PATH"] = os.path.dirname(mozjpeg_pc)
-            mozjpeg_version = (
-                subprocess.check_output(
-                    ["pkg-config", "--modversion", "libjpeg"],
-                    stderr=subprocess.DEVNULL,
-                    env=mozjpeg_env,
-                )
-                .decode()
-                .strip()
-            )
-        except Exception:
-            pass
-    libraries["mozjpeg"] = mozjpeg_version
     libraries["mimalloc"] = _detect_mimalloc_version()
     libraries["hyperfine"] = "unknown"
 
