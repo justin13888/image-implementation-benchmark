@@ -1,3 +1,6 @@
+_default:
+    @just --list
+
 # Clean recipes
 
 # Remove C++ and Rust benchmark build artifacts (fast to rebuild)
