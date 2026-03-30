@@ -1,6 +1,7 @@
 """System information collection for reproducibility manifests."""
 
 import datetime
+import glob
 import os
 import platform
 import subprocess
@@ -96,11 +97,20 @@ def _detect_mimalloc_version() -> str:
 
 
 def _find_pc_file(prefix: str, module_name: str) -> Optional[str]:
-    """Search for <module_name>.pc under a vendor install prefix."""
+    """Search for <module_name>.pc under a vendor install prefix.
+
+    Checks the three standard pkgconfig locations first, then falls back to a
+    glob over multiarch lib paths (e.g. lib/x86_64-linux-gnu/pkgconfig) that
+    Meson may use on Debian/Ubuntu even with a custom --prefix.
+    """
+    pc_name = f"{module_name}.pc"
     for subdir in ("lib/pkgconfig", "lib64/pkgconfig", "share/pkgconfig"):
-        candidate = os.path.join(prefix, subdir, f"{module_name}.pc")
+        candidate = os.path.join(prefix, subdir, pc_name)
         if os.path.exists(candidate):
             return candidate
+    # Multiarch fallback: lib/<triplet>/pkgconfig/<module>.pc
+    for candidate in glob.glob(os.path.join(prefix, "lib", "*", "pkgconfig", pc_name)):
+        return candidate
     return None
 
 
@@ -129,6 +139,8 @@ def get_library_versions() -> Dict[str, str]:
         ("libjxl", "libjxl"),
         ("spng", "libspng"),
         ("aom", "aom"),
+        ("svt-av1", "SvtAv1Enc"),
+        ("libgav1", "libgav1"),
         ("zlib", "zlib"),
     ]
     for display_name, module_name in common_libs:

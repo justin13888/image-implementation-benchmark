@@ -141,7 +141,8 @@ class BenchmarkType(str, Enum):
 
 class Implementation(BaseModel):
     name: str
-    lang: Literal["cpp", "rust"]
+    build: Literal["cpp", "rust"]
+    lang: str
     # Binary path
     bin: str
     type: BenchmarkType
@@ -152,20 +153,23 @@ class Implementation(BaseModel):
 NULL_IMPLEMENTATIONS: list[Implementation] = [
     Implementation(
         name="null-cpp-decode",
-        lang="cpp",
+        build="cpp",
+        lang="c++",
         bin="implementations/cpp/null/build/bench-null-decode",
         type=BenchmarkType.DECODE,
         format=None,
     ),
     Implementation(
         name="null-cpp-encode",
-        lang="cpp",
+        build="cpp",
+        lang="c++",
         bin="implementations/cpp/null/build/bench-null-encode",
         type=BenchmarkType.ENCODE,
         format=None,
     ),
     Implementation(
         name="null-rust-decode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-null-decode",
         type=BenchmarkType.DECODE,
@@ -173,6 +177,7 @@ NULL_IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="null-rust-encode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-null-encode",
         type=BenchmarkType.ENCODE,
@@ -184,6 +189,7 @@ IMPLEMENTATIONS: list[Implementation] = [
     # JPEG
     Implementation(
         name="jpeg-decoder-decode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-jpeg-decoder-decode",
         type=BenchmarkType.DECODE,
@@ -191,6 +197,7 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="zune-jpeg-decode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-zune-jpeg-decode",
         type=BenchmarkType.DECODE,
@@ -198,6 +205,7 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="jpeg-encoder-encode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-jpeg-encoder-encode",
         type=BenchmarkType.ENCODE,
@@ -205,6 +213,7 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="image-jpeg-encode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-image-jpeg-encode",
         type=BenchmarkType.ENCODE,
@@ -212,28 +221,32 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="libjpeg-turbo-decode",
-        lang="cpp",
+        build="cpp",
+        lang="c",
         bin="implementations/cpp/libjpeg-turbo/build/bench-libjpeg-turbo-decode",
         type=BenchmarkType.DECODE,
         format=ImageFormat.JPEG,
     ),
     Implementation(
         name="libjpeg-turbo-encode",
-        lang="cpp",
+        build="cpp",
+        lang="c",
         bin="implementations/cpp/libjpeg-turbo/build/bench-libjpeg-turbo-encode",
         type=BenchmarkType.ENCODE,
         format=ImageFormat.JPEG,
     ),
     Implementation(
         name="mozjpeg-decode",
-        lang="cpp",
+        build="cpp",
+        lang="c",
         bin="implementations/cpp/mozjpeg/build/bench-mozjpeg-decode",
         type=BenchmarkType.DECODE,
         format=ImageFormat.JPEG,
     ),
     Implementation(
         name="mozjpeg-encode",
-        lang="cpp",
+        build="cpp",
+        lang="c",
         bin="implementations/cpp/mozjpeg/build/bench-mozjpeg-encode",
         type=BenchmarkType.ENCODE,
         format=ImageFormat.JPEG,
@@ -241,6 +254,7 @@ IMPLEMENTATIONS: list[Implementation] = [
     # PNG
     Implementation(
         name="image-png-decode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-image-png-decode",
         type=BenchmarkType.DECODE,
@@ -248,6 +262,7 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="image-png-encode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-image-png-encode",
         type=BenchmarkType.ENCODE,
@@ -255,6 +270,7 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="zune-png-decode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-zune-png-decode",
         type=BenchmarkType.DECODE,
@@ -262,6 +278,7 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="zune-png-encode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-zune-png-encode",
         type=BenchmarkType.ENCODE,
@@ -269,28 +286,32 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="libpng-decode",
-        lang="cpp",
+        build="cpp",
+        lang="c",
         bin="implementations/cpp/libpng/build/bench-libpng-decode",
         type=BenchmarkType.DECODE,
         format=ImageFormat.PNG,
     ),
     Implementation(
         name="libpng-encode",
-        lang="cpp",
+        build="cpp",
+        lang="c",
         bin="implementations/cpp/libpng/build/bench-libpng-encode",
         type=BenchmarkType.ENCODE,
         format=ImageFormat.PNG,
     ),
     Implementation(
         name="spng-decode",
-        lang="cpp",
+        build="cpp",
+        lang="c",
         bin="implementations/cpp/spng/build/bench-spng-decode",
         type=BenchmarkType.DECODE,
         format=ImageFormat.PNG,
     ),
     Implementation(
         name="spng-encode",
-        lang="cpp",
+        build="cpp",
+        lang="c",
         bin="implementations/cpp/spng/build/bench-spng-encode",
         type=BenchmarkType.ENCODE,
         format=ImageFormat.PNG,
@@ -298,6 +319,7 @@ IMPLEMENTATIONS: list[Implementation] = [
     # WEBP
     Implementation(
         name="image-webp-decode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-image-webp-decode",
         type=BenchmarkType.DECODE,
@@ -305,6 +327,7 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="image-webp-encode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-image-webp-encode",
         type=BenchmarkType.ENCODE,
@@ -312,14 +335,16 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="libwebp-decode",
-        lang="cpp",
+        build="cpp",
+        lang="c",
         bin="implementations/cpp/libwebp/build/bench-libwebp-decode",
         type=BenchmarkType.DECODE,
         format=ImageFormat.WEBP,
     ),
     Implementation(
         name="libwebp-encode",
-        lang="cpp",
+        build="cpp",
+        lang="c",
         bin="implementations/cpp/libwebp/build/bench-libwebp-encode",
         type=BenchmarkType.ENCODE,
         format=ImageFormat.WEBP,
@@ -327,6 +352,7 @@ IMPLEMENTATIONS: list[Implementation] = [
     # AVIF
     Implementation(
         name="rav1e-encode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-rav1e-encode",
         type=BenchmarkType.ENCODE,
@@ -334,28 +360,56 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="libavif-decode",
-        lang="cpp",
+        build="cpp",
+        lang="c",
         bin="implementations/cpp/libavif/build/bench-libavif-decode",
         type=BenchmarkType.DECODE,
         format=ImageFormat.AVIF,
     ),
     Implementation(
         name="libavif-encode",
-        lang="cpp",
+        build="cpp",
+        lang="c",
         bin="implementations/cpp/libavif/build/bench-libavif-encode",
         type=BenchmarkType.ENCODE,
         format=ImageFormat.AVIF,
     ),
     Implementation(
         name="dav1d-decode",
-        lang="cpp",
+        build="cpp",
+        lang="c/asm",
         bin="implementations/cpp/dav1d/build/bench-dav1d-decode",
+        type=BenchmarkType.DECODE,
+        format=ImageFormat.AVIF,
+    ),
+    Implementation(
+        name="svt-av1-encode",
+        build="cpp",
+        lang="c",
+        bin="implementations/cpp/svt-av1/build/bench-svt-av1-encode",
+        type=BenchmarkType.ENCODE,
+        format=ImageFormat.AVIF,
+    ),
+    Implementation(
+        name="libgav1-decode",
+        build="cpp",
+        lang="c++",
+        bin="implementations/cpp/libgav1/build/bench-libgav1-decode",
+        type=BenchmarkType.DECODE,
+        format=ImageFormat.AVIF,
+    ),
+    Implementation(
+        name="rav1d-decode",
+        build="cpp",
+        lang="rust",
+        bin="implementations/cpp/rav1d/build/bench-rav1d-decode",
         type=BenchmarkType.DECODE,
         format=ImageFormat.AVIF,
     ),
     # JXL
     Implementation(
         name="jxl-oxide-decode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-jxl-oxide-decode",
         type=BenchmarkType.DECODE,
@@ -363,6 +417,7 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="zune-jpegxl-encode",
+        build="rust",
         lang="rust",
         bin="target/release/bench-zune-jpegxl-encode",
         type=BenchmarkType.ENCODE,
@@ -370,14 +425,16 @@ IMPLEMENTATIONS: list[Implementation] = [
     ),
     Implementation(
         name="libjxl-decode",
-        lang="cpp",
+        build="cpp",
+        lang="c++",
         bin="implementations/cpp/libjxl/build/bench-libjxl-decode",
         type=BenchmarkType.DECODE,
         format=ImageFormat.JXL,
     ),
     Implementation(
         name="libjxl-encode",
-        lang="cpp",
+        build="cpp",
+        lang="c++",
         bin="implementations/cpp/libjxl/build/bench-libjxl-encode",
         type=BenchmarkType.ENCODE,
         format=ImageFormat.JXL,

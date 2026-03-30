@@ -34,3 +34,12 @@
 [submodule "vendor/ssimulacra2"]
 	path = vendor/ssimulacra2
 	url = https://github.com/justin13888/ssimulacra2.git
+[submodule "vendor/SVT-AV1"]
+	path = vendor/SVT-AV1
+	url = https://gitlab.com/AOMediaCodec/SVT-AV1.git
+[submodule "vendor/libgav1"]
+	path = vendor/libgav1
+	url = https://chromium.googlesource.com/codecs/libgav1.git
+[submodule "vendor/rav1d"]
+	path = vendor/rav1d
+	url = https://github.com/memorysafety/rav1d.git

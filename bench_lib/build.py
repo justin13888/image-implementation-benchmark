@@ -71,12 +71,12 @@ def run_build_command(command, cwd, step_name, max_lines=100, env=None):
 
 def build_project(impl: Implementation):
     """Build a project by name."""
-    if impl.lang == "rust":
+    if impl.build == "rust":
         build_rust_project(impl)
-    elif impl.lang == "cpp":
+    elif impl.build == "cpp":
         build_cpp_project(impl)
     else:
-        raise ValueError(f"Unknown language: {impl.lang}")
+        raise ValueError(f"Unknown build ecosystem: {impl.build}")
 
 
 def build_rust_project(impl: Implementation):
@@ -85,7 +85,7 @@ def build_rust_project(impl: Implementation):
 
     Assumes the project language is Rust.
     """
-    assert impl.lang == "rust", "build_rust_project() called with non-Rust project"
+    assert impl.build == "rust", "build_rust_project() called with non-Rust project"
 
     run_build_command(
         [
@@ -120,7 +120,7 @@ def _get_pkg_config_path(prefix: str) -> str:
 
 def build_cpp_project(impl):
     """Build a C++ project with thread-safe logging."""
-    assert impl.lang == "cpp", "build_cpp_project() called with non-C++ project"
+    assert impl.build == "cpp", "build_cpp_project() called with non-C++ project"
 
     bin_path = impl.bin
     build_dir = os.path.dirname(bin_path)
@@ -233,7 +233,7 @@ def build_projects(formats: list[ImageFormat]):
             NULL_IMPLEMENTATIONS,
             (impl for impl in IMPLEMENTATIONS if impl.format == fmt),
         ):
-            if impl.lang == "cpp" and impl.name not in seen:
+            if impl.build == "cpp" and impl.name not in seen:
                 seen.add(impl.name)
                 to_build.append(impl)
     num_workers = min(len(to_build), 3) if to_build else 1

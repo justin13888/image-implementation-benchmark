@@ -324,6 +324,89 @@ def build_aom():
     )
 
 
+def build_svt_av1():
+    label = "svt-av1"
+    sentinel = os.path.join(INSTALL_COMMON, "lib", "libSvtAv1Enc.a")
+    if not is_built(sentinel):
+        sentinel = os.path.join(INSTALL_COMMON, "lib64", "libSvtAv1Enc.a")
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+    src = os.path.join(VENDOR_DIR, "SVT-AV1")
+    cmake_build(
+        src,
+        "svt-av1",
+        INSTALL_COMMON,
+        cmake_args=[
+            "-DBUILD_APPS=OFF",
+            "-DBUILD_TESTING=OFF",
+            "-DBUILD_DEC=OFF",
+            "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+        ],
+        label=label,
+    )
+
+
+def build_libgav1():
+    label = "libgav1"
+    sentinel = os.path.join(INSTALL_COMMON, "lib", "libgav1.a")
+    if not is_built(sentinel):
+        sentinel = os.path.join(INSTALL_COMMON, "lib64", "libgav1.a")
+    if is_built(sentinel):
+        print(f"  [{label}] Already built, skipping.")
+        return
+    src = os.path.join(VENDOR_DIR, "libgav1")
+    cmake_build(
+        src,
+        "libgav1",
+        INSTALL_COMMON,
+        cmake_args=[
+            "-DLIBGAV1_ENABLE_TESTS=OFF",
+            "-DLIBGAV1_ENABLE_EXAMPLES=OFF",
+            "-DLIBGAV1_THREADPOOL_USE_STD_MUTEX=ON",
+            "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+        ],
+        label=label,
+    )
+
+
+def build_rav1d():
+    label = "rav1d"
+    target_dir = os.path.join(BUILD_DIR, "rav1d")
+    binary = os.path.join(target_dir, "release", "librav1d.a")
+    installed = os.path.join(INSTALL_COMMON, "lib", "librav1d.a")
+    if os.path.exists(installed):
+        print(f"  [{label}] Already built, skipping.")
+        return
+
+    manifest = os.path.join(VENDOR_DIR, "rav1d", "Cargo.toml")
+    os.makedirs(target_dir, exist_ok=True)
+    os.makedirs(os.path.join(INSTALL_COMMON, "lib"), exist_ok=True)
+
+    env = os.environ.copy()
+    env["RUSTFLAGS"] = "-C target-cpu=native"
+
+    print(f"  [{label}] Building librav1d.a...")
+    run(
+        [
+            "cargo",
+            "build",
+            "--lib",
+            "--release",
+            "--manifest-path",
+            manifest,
+            "--target-dir",
+            target_dir,
+        ],
+        env=env,
+        label=label,
+    )
+
+    # Copy to install prefix
+    shutil.copy2(binary, installed)
+    print(f"  [{label}] Installed librav1d.a to {installed}")
+
+
 def build_libavif():
     label = "libavif"
     sentinel = os.path.join(INSTALL_COMMON, "lib", "libavif.a")
@@ -347,7 +430,9 @@ def build_libavif():
         pkg_lib_dirs.append(extra)
 
     existing_pkg = os.environ.get("PKG_CONFIG_PATH", "")
-    pkg_config_path = os.pathsep.join(pkg_lib_dirs + ([existing_pkg] if existing_pkg else []))
+    pkg_config_path = os.pathsep.join(
+        pkg_lib_dirs + ([existing_pkg] if existing_pkg else [])
+    )
 
     cmake_build(
         src,
@@ -356,6 +441,8 @@ def build_libavif():
         cmake_args=[
             "-DAVIF_CODEC_DAV1D=SYSTEM",
             "-DAVIF_CODEC_AOM=SYSTEM",
+            "-DAVIF_CODEC_SVT=SYSTEM",
+            "-DAVIF_CODEC_LIBGAV1=SYSTEM",
             "-DAVIF_BUILD_APPS=OFF",
             "-DAVIF_BUILD_TESTS=OFF",
             "-DAVIF_LIBYUV=OFF",
@@ -464,6 +551,9 @@ def main():
         ("spng", build_spng),
         ("dav1d", build_dav1d),
         ("aom", build_aom),
+        ("svt-av1", build_svt_av1),
+        ("libgav1", build_libgav1),
+        ("rav1d", build_rav1d),
         ("libavif", build_libavif),
         ("libjxl", build_libjxl),
         ("libwebp", build_libwebp),

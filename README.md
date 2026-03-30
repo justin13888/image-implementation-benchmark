@@ -27,7 +27,7 @@ This repository contains benchmarks for various image format implementations, co
   brew install clang-format cmake ccache nasm meson ninja pkg-config imagemagick hyperfine wget unzip
   ```
 
-All C/C++ image libraries (zlib, mimalloc, libjpeg-turbo, mozjpeg, libpng, spng, libwebp, dav1d, aom, libavif, libjxl) and ssimulacra2 are vendored as git submodules and built automatically. No system dev packages for these libraries are required.
+All C/C++ image libraries (zlib, mimalloc, libjpeg-turbo, mozjpeg, libpng, spng, libwebp, dav1d, aom, SVT-AV1, libgav1, libavif, libjxl) and Rust libraries (rav1d) and ssimulacra2 are vendored as git submodules and built automatically. No system dev packages for these libraries are required.
 
 > **CMake version:** CMake ≥ 3.5 is required. CMake 4.x is supported — `vendor/build_vendor.py` passes `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` automatically for older vendored projects (e.g. mozjpeg) that declare a lower minimum.
 
@@ -387,10 +387,11 @@ We include modern formats and their most competitive implementations.
 | Implementation | Language | Notes                                     |
 | :------------- | :------- | :---------------------------------------- |
 | **libavif**    | C        | Reference (AOM/dav1d backend)             |
-| **dav1d**      | C/Asm    | Direct decoder (bypasses libavif wrapper) |
+| **dav1d**      | C/Asm    | Decoder via libavif (dav1d backend)       |
+| **libgav1**    | C++      | Decoder via libavif (libgav1 backend)     |
+| **SVT-AV1**    | C        | Encoder via libavif (SVT-AV1 backend)     |
 | **rav1e**      | Rust     | Encoder. *Film grain synthesis (web-high) not yet implemented; web-high uses same parameters as web-low.* |
-
-<!-- | **rav1d**      | Rust     | Excluded due to API complexity and incomplete state. | -->
+| **rav1d**      | Rust     | Decoder (Rust port of dav1d). *Drop-in dav1d replacement; linked at binary level.* |
 
 ### JPEG XL
 

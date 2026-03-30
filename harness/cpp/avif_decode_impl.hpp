@@ -23,7 +23,7 @@ class AvifDecodeBenchBase : public BenchmarkImplementation {
     avifDecoder *decoder = avifDecoderCreate();
     if (!decoder) throw std::runtime_error("avifDecoderCreate failed");
 
-    avifDecoderSetCodecChoice(decoder, codec_);
+    decoder->codecChoice = codec_;
     if (threads > 0) {
       decoder->maxThreads = threads;
     }
