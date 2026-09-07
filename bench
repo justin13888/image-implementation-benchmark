@@ -50,9 +50,8 @@ if __name__ == "__main__":
         elif isinstance(args, ReportArgs):
             run_report(args)
 
-        # RunArgs and its backward-compatible aliases (quality/perf/all) are all
-        # RunArgs subclasses, so this single branch handles every sweep command.
-        # (ReportArgs is a plain BaseModel, handled above, so order is irrelevant.)
+        # ReportArgs is a plain BaseModel, handled above, so branch order is
+        # irrelevant here.
         elif isinstance(args, RunArgs):
             run_sweep(args)
 
