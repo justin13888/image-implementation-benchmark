@@ -100,7 +100,7 @@ The benchmark is **quality-first**: a single **`./bench run`** sweeps the *same*
 - **`anchor`** *(default)* — rigorous timing at each implementation's preset point, plus the relative-time curve across the whole sweep;
 - **`all`** — rigorous timing at **every** operating point, across both threading modes (most thorough; runtime grows with the number of points).
 
-IQA metrics come from the [`iqa`](https://crates.io/crates/iqa) crate via the published [`iqa-cli`](https://crates.io/crates/iqa-cli) binary. `--formats` filters formats; `--mode {encode,decode,both}` narrows to encoders and/or decoders. Backward-compatible aliases map onto `run`: **`./bench quality`** = `run --perf off`, **`./bench perf`** = `run --perf all`, **`./bench all`** = `run` (anchor).
+IQA metrics come from the [`iqa`](https://crates.io/crates/iqa) crate via the published [`iqa-cli`](https://crates.io/crates/iqa-cli) binary. `--formats` filters formats; `--mode {encode,decode,both}` narrows to encoders and/or decoders.
 
 `--decode-steps` sets how many input bitrates the decoder sweep uses (default **3**, sampled from the reference encoder's range): decode cost/fidelity is ~flat across bitrate, so a few points characterize it without re-timing every quality level — pass `--decode-steps 0` to restore the full encoder axis. Two opt-in suites add axes the main sweep deliberately holds fixed, each as an extra subfolder in the bundle:
 
@@ -140,11 +140,6 @@ IQA metrics come from the [`iqa`](https://crates.io/crates/iqa) crate via the pu
 
 # Resolution-scaling characterization on its own (time vs pixels, fitted exponent)
 ./bench run --dataset clic2025 --perf off --scaling --scaling-images 3
-
-# Backward-compatible aliases
-./bench quality --dataset kodak     # = run --perf off
-./bench perf --dataset kodak        # = run --perf all
-./bench all --dataset kodak         # = run (anchor)
 
 # --- Shared ---
 ./bench compile          # build vendored libs + all implementations + install iqa-cli

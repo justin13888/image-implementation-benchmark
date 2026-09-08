@@ -2029,28 +2029,6 @@ class RunArgs(BaseArgs):
         return self
 
 
-class QualityArgs(RunArgs):
-    """Backward-compatible alias for ``run --perf off``: the quality sweep with
-    relative one-pass timing only (no rigorous hyperfine pass)."""
-
-    perf: _PERF_ARG = "off"
-
-
-class PerfArgs(RunArgs):
-    """Backward-compatible alias for ``run --perf all``: the full sweep with
-    rigorous hyperfine timing at every operating point. Quality is still scored
-    (now always collected), so this is a superset of the old performance suite."""
-
-    perf: _PERF_ARG = "all"
-
-
-class AllArgs(RunArgs):
-    """Backward-compatible alias for ``run`` (``--perf anchor``): the quality sweep
-    plus rigorous timing at each impl's preset point."""
-
-    pass
-
-
 class CleanArgs(BaseModel):
     """Clean build artifacts."""
 
@@ -2138,9 +2116,6 @@ class ReportArgs(BaseModel):
 
 CliEntry = Union[
     Annotated[RunArgs, tyro.conf.subcommand(name="run")],
-    Annotated[QualityArgs, tyro.conf.subcommand(name="quality")],
-    Annotated[PerfArgs, tyro.conf.subcommand(name="perf")],
-    Annotated[AllArgs, tyro.conf.subcommand(name="all")],
     Annotated[ReportArgs, tyro.conf.subcommand(name="report")],
     Annotated[CleanArgs, tyro.conf.subcommand(name="clean")],
     Annotated[CompileArgs, tyro.conf.subcommand(name="compile")],
